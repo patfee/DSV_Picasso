@@ -11,7 +11,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
 def available_crane_files() -> List[dict]:
-    """Scan the data directory for .mat files and return Dash dropdown options."""
+    \"\"\"Scan the data directory for .mat files and return Dash dropdown options.\"\\"\"
     if not os.path.isdir(DATA_DIR):
         return []
 
@@ -26,14 +26,38 @@ def available_crane_files() -> List[dict]:
 
 @lru_cache(maxsize=32)
 def load_crane_file(filename: str) -> Dict[str, Any]:
-    """Load a single .mat file and extract key fields. Cached in memory."""
+    \"\\"\"Load a single .mat file and extract key fields. Cached in memory.
+
+    Supports two layouts:
+    - Top-level variables: VMm, VFm, TP_y_m, TP_z_m, Pmax
+    - Nested under SPC struct: SPC.VMm, SPC.VFm, etc.
+    \"\\"\"
     path = os.path.join(DATA_DIR, filename)
     if not os.path.isfile(path):
         raise FileNotFoundError(f"Crane data file not found: {path}")
 
-    mat = loadmat(path)
+    # struct_as_record=False + squeeze_me=True makes MATLAB structs behave like simple objects
+    mat = loadmat(path, squeeze_me=True, struct_as_record=False)
+
+    spc = mat.get("SPC", None)
+
+    def _from_spc(name: str):
+        if spc is None:
+            return None
+        # attribute-style access (preferred)
+        if hasattr(spc, name):
+            return getattr(spc, name)
+        # dict-style fallback
+        if isinstance(spc, dict) and name in spc:
+            return spc[name]
+        return None
 
     def _get(name: str):
+        # try SPC first
+        v = _from_spc(name)
+        if v is not None:
+            return v
+        # fall back to top-level
         return mat.get(name, None)
 
     return {
