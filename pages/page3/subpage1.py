@@ -1,5 +1,10 @@
-
 from dash import html
 
+
 def render():
-    return html.Div([html.H4("Subpage 1"), html.P("Content for subpage 1.")])
+    return html.Div(
+        [
+            html.H4("Page 3 – Subpage 1"),
+            html.P("Future settings can go here."),
+        ]
+    )
