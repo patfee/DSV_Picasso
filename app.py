@@ -1,20 +1,13 @@
 import dash
 from dash import html, dcc, Input, Output
 
-# Import page layouts & callbacks
 from pages.page1.layout import layout as page1_layout, register_callbacks as page1_register_callbacks
 from pages.page2.layout import layout as page2_layout, register_callbacks as page2_register_callbacks
 from pages.page3.layout import layout as page3_layout, register_callbacks as page3_register_callbacks
 
-# Create Dash app
-app = dash.Dash(
-    __name__,
-    suppress_callback_exceptions=True,
-    title="DSV Picasso",
-)
-server = app.server  # for gunicorn: app:server
+app = dash.Dash(__name__, suppress_callback_exceptions=True, title="DSV Picasso")
+server = app.server
 
-# Basic styles
 HEADER_STYLE = {
     "backgroundColor": "#1f2933",
     "color": "white",
@@ -62,65 +55,29 @@ CARD_STYLE = {
     "boxShadow": "0 1px 2px rgba(0,0,0,0.04)",
 }
 
-
 app.layout = html.Div(
     children=[
-        # HEADER
         html.Div("DSV Picasso – Crane Interface", style=HEADER_STYLE),
-
-        # MAIN AREA: sidebar + content
         html.Div(
             style=APP_WRAPPER_STYLE,
             children=[
-                # SIDEBAR
                 html.Div(
                     [
-                        html.H3(
-                            "Menu",
-                            style={
-                                "fontSize": "1.1rem",
-                                "marginBottom": "0.75rem",
-                            },
-                        ),
+                        html.H3("Menu", style={"fontSize": "1.1rem", "marginBottom": "0.75rem"}),
                         dcc.Location(id="url", refresh=False),
-                        dcc.Link(
-                            "Page 1",
-                            href="/page-1",
-                            id="link-page-1",
-                            style=SIDEBAR_LINK_STYLE,
-                        ),
-                        dcc.Link(
-                            "Page 2",
-                            href="/page-2",
-                            id="link-page-2",
-                            style=SIDEBAR_LINK_STYLE,
-                        ),
-                        dcc.Link(
-                            "Page 3",
-                            href="/page-3",
-                            id="link-page-3",
-                            style=SIDEBAR_LINK_STYLE,
-                        ),
+                        dcc.Link("Page 1", href="/page-1", id="link-page-1", style=SIDEBAR_LINK_STYLE),
+                        dcc.Link("Page 2", href="/page-2", id="link-page-2", style=SIDEBAR_LINK_STYLE),
+                        dcc.Link("Page 3", href="/page-3", id="link-page-3", style=SIDEBAR_LINK_STYLE),
                     ],
                     style=SIDEBAR_STYLE,
                 ),
-
-                # CONTENT
-                html.Div(
-                    id="page-content",
-                    style=CONTENT_WRAPPER_STYLE,
-                ),
+                html.Div(id="page-content", style=CONTENT_WRAPPER_STYLE),
             ],
         ),
     ]
 )
 
-
-# ROUTING: switch pages based on URL
-@app.callback(
-    Output("page-content", "children"),
-    Input("url", "pathname"),
-)
+@app.callback(Output("page-content", "children"), Input("url", "pathname"))
 def render_page(pathname):
     if pathname in ("/", "/page-1"):
         return page1_layout()
@@ -128,21 +85,14 @@ def render_page(pathname):
         return page2_layout()
     elif pathname == "/page-3":
         return page3_layout()
-    return html.Div(
-        style=CARD_STYLE,
-        children=[
-            html.H2("404 – Page not found"),
-            html.P(f"The path '{pathname}' does not exist."),
-        ],
-    )
+    return html.Div(style=CARD_STYLE, children=[
+        html.H2("404 – Page not found"),
+        html.P(f"The path '{pathname}' does not exist.")
+    ])
 
-
-# Register page-specific callbacks
 page1_register_callbacks(app)
 page2_register_callbacks(app)
 page3_register_callbacks(app)
 
-
 if __name__ == "__main__":
-    # Local dev
     app.run_server(host="0.0.0.0", port=8050, debug=True)
