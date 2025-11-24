@@ -1,142 +1,83 @@
 import dash
-from dash import html, dcc, Input, Output
+from dash import html, dcc
+from dash.dependencies import Input, Output
 
 from pages.page1.layout import layout as page1_layout, register_callbacks as page1_register_callbacks
 from pages.page2.layout import layout as page2_layout, register_callbacks as page2_register_callbacks
 from pages.page3.layout import layout as page3_layout, register_callbacks as page3_register_callbacks
 
-app = dash.Dash(
-    __name__,
-    suppress_callback_exceptions=True,
-    title="DSV Picasso",
-)
-server = app.server  # for gunicorn
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
-
-HEADER_STYLE = {
-    "backgroundColor": "#1f2933",
-    "color": "white",
-    "padding": "1rem 1.5rem",
-    "fontSize": "1.5rem",
-    "fontWeight": "bold",
-}
-
-APP_WRAPPER_STYLE = {
-    "display": "flex",
-    "height": "100vh",
-    "overflow": "hidden",
-    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-}
-
-SIDEBAR_STYLE = {
-    "width": "220px",
-    "backgroundColor": "#f5f7fa",
-    "borderRight": "1px solid #d8e2ec",
-    "padding": "1rem 0.75rem",
-}
-
-SIDEBAR_LINK_STYLE = {
-    "display": "block",
-    "padding": "0.5rem 0.75rem",
-    "marginBottom": "0.25rem",
-    "borderRadius": "0.375rem",
-    "textDecoration": "none",
-    "color": "#102a43",
-    "fontSize": "0.95rem",
-}
-
-CONTENT_WRAPPER_STYLE = {
-    "flex": "1",
-    "padding": "1rem 1.5rem",
-    "overflowY": "auto",
-    "backgroundColor": "#ffffff",
-}
-
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
+server = app.server
 
 app.layout = html.Div(
-    children=[
-        # global store for selected crane file
+    [
+        dcc.Location(id="url"),
         dcc.Store(id="selected-crane-file"),
-
-        html.Div("DSV Picasso – Crane Interface", style=HEADER_STYLE),
-
         html.Div(
-            style=APP_WRAPPER_STYLE,
-            children=[
-                # Sidebar
+            [
+                html.H1("DSV Picasso Crane App", style={"margin": 0}),
+            ],
+            style={
+                "backgroundColor": "#1f3b4d",
+                "color": "white",
+                "padding": "15px 20px",
+            },
+        ),
+        html.Div(
+            [
                 html.Div(
                     [
-                        html.H3(
-                            "Menu",
-                            style={
-                                "fontSize": "1.1rem",
-                                "marginBottom": "0.75rem",
-                            },
-                        ),
-                        dcc.Location(id="url", refresh=False),
-                        dcc.Link(
-                            "Page 1",
-                            href="/page-1",
-                            id="link-page-1",
-                            style=SIDEBAR_LINK_STYLE,
-                        ),
-                        dcc.Link(
-                            "Page 2",
-                            href="/page-2",
-                            id="link-page-2",
-                            style=SIDEBAR_LINK_STYLE,
-                        ),
-                        dcc.Link(
-                            "Page 3",
-                            href="/page-3",
-                            id="link-page-3",
-                            style=SIDEBAR_LINK_STYLE,
+                        html.H3("Navigation"),
+                        html.Ul(
+                            [
+                                html.Li(html.A("Page 1", href="/page1")),
+                                html.Li(html.A("Page 2", href="/page2")),
+                                html.Li(html.A("Page 3", href="/page3")),
+                            ],
+                            style={"listStyleType": "none", "padding": 0},
                         ),
                     ],
-                    style=SIDEBAR_STYLE,
+                    style={
+                        "width": "200px",
+                        "padding": "20px",
+                        "backgroundColor": "#f5f5f5",
+                        "borderRight": "1px solid #ddd",
+                        "height": "calc(100vh - 70px)",
+                        "boxSizing": "border-box",
+                    },
                 ),
-
-                # Main content
                 html.Div(
                     id="page-content",
-                    style=CONTENT_WRAPPER_STYLE,
+                    style={"flex": "1", "padding": "20px"},
                 ),
             ],
+            style={"display": "flex", "flexDirection": "row"},
         ),
     ]
 )
 
-
-@app.callback(
-    Output("page-content", "children"),
-    Input("url", "pathname"),
-)
-def render_page(pathname):
-    if pathname in ("/", "/page-1"):
+@app.callback(Output("page-content", "children"), Input("url", "pathname"))
+def display_page(pathname):
+    if pathname in ("/", "/page1"):
         return page1_layout()
-    elif pathname == "/page-2":
+    elif pathname == "/page2":
         return page2_layout()
-    elif pathname == "/page-3":
+    elif pathname == "/page3":
         return page3_layout()
-    return html.Div(
-        children=[
-            html.H2("404 – Page not found"),
-            html.P(f"The path '{pathname}' does not exist."),
-        ],
-        style={
-            "border": "1px solid #d8e2ec",
-            "borderRadius": "0.5rem",
-            "padding": "1rem 1.25rem",
-            "backgroundColor": "#ffffff",
-        },
-    )
+    else:
+        return html.Div(
+            [
+                html.H2("404 - Page not found"),
+                html.P(f"The path '{pathname}' does not exist."),
+            ]
+        )
 
-
-# register callbacks for subpages
+# Register page-specific callbacks
 page1_register_callbacks(app)
 page2_register_callbacks(app)
 page3_register_callbacks(app)
-
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8050, debug=True)
