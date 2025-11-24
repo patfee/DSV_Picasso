@@ -1,5 +1,3 @@
-# pages/page1/layout.py
-
 from dash import html, dcc, Input, Output
 
 from .subpage1 import render as render_subpage1
@@ -14,6 +12,7 @@ CARD_STYLE = {
     "backgroundColor": "#ffffff",
     "boxShadow": "0 1px 2px rgba(0,0,0,0.04)",
 }
+
 
 
 def layout():

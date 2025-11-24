@@ -12,6 +12,7 @@ app = dash.Dash(
 )
 server = app.server  # for gunicorn
 
+
 HEADER_STYLE = {
     "backgroundColor": "#1f2933",
     "color": "white",
@@ -51,17 +52,10 @@ CONTENT_WRAPPER_STYLE = {
     "backgroundColor": "#ffffff",
 }
 
-CARD_STYLE = {
-    "border": "1px solid #d8e2ec",
-    "borderRadius": "0.5rem",
-    "padding": "1rem 1.25rem",
-    "backgroundColor": "#ffffff",
-    "boxShadow": "0 1px 2px rgba(0,0,0,0.04)",
-}
-
 
 app.layout = html.Div(
     children=[
+        # global store for selected crane file
         dcc.Store(id="selected-crane-file"),
 
         html.Div("DSV Picasso – Crane Interface", style=HEADER_STYLE),
@@ -69,14 +63,15 @@ app.layout = html.Div(
         html.Div(
             style=APP_WRAPPER_STYLE,
             children=[
+                # Sidebar
                 html.Div(
                     [
                         html.H3(
                             "Menu",
-                            style={{
+                            style={
                                 "fontSize": "1.1rem",
                                 "marginBottom": "0.75rem",
-                            }},
+                            },
                         ),
                         dcc.Location(id="url", refresh=False),
                         dcc.Link(
@@ -101,6 +96,7 @@ app.layout = html.Div(
                     style=SIDEBAR_STYLE,
                 ),
 
+                # Main content
                 html.Div(
                     id="page-content",
                     style=CONTENT_WRAPPER_STYLE,
@@ -123,14 +119,20 @@ def render_page(pathname):
     elif pathname == "/page-3":
         return page3_layout()
     return html.Div(
-        style=CARD_STYLE,
         children=[
             html.H2("404 – Page not found"),
             html.P(f"The path '{pathname}' does not exist."),
         ],
+        style={
+            "border": "1px solid #d8e2ec",
+            "borderRadius": "0.5rem",
+            "padding": "1rem 1.25rem",
+            "backgroundColor": "#ffffff",
+        },
     )
 
 
+# register callbacks for subpages
 page1_register_callbacks(app)
 page2_register_callbacks(app)
 page3_register_callbacks(app)

@@ -6,14 +6,12 @@ from scipy.io import loadmat
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Now use ./data (not ./data/test)
+# Crane .mat files live in ./data
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 
 def available_crane_files() -> List[dict]:
-    """
-    Scan the data directory for .mat files and return Dash dropdown options.
-    """
+    """Scan the data directory for .mat files and return Dash dropdown options."""
     if not os.path.isdir(DATA_DIR):
         return []
 
@@ -28,10 +26,7 @@ def available_crane_files() -> List[dict]:
 
 @lru_cache(maxsize=32)
 def load_crane_file(filename: str) -> Dict[str, Any]:
-    """
-    Load a single .mat file and extract the key fields we care about.
-    Result is cached in memory so repeated calls are cheap.
-    """
+    """Load a single .mat file and extract key fields. Cached in memory."""
     path = os.path.join(DATA_DIR, filename)
     if not os.path.isfile(path):
         raise FileNotFoundError(f"Crane data file not found: {path}")
@@ -39,9 +34,7 @@ def load_crane_file(filename: str) -> Dict[str, Any]:
     mat = loadmat(path)
 
     def _get(name: str):
-        if name not in mat:
-            return None
-        return mat[name]
+        return mat.get(name, None)
 
     return {
         "VMm": _get("VMm"),         # main jib angle (deg)

@@ -13,6 +13,7 @@ CARD_STYLE = {
 }
 
 
+
 def layout():
     return html.Div(
         style=CARD_STYLE,
