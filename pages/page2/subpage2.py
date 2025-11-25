@@ -31,7 +31,7 @@ def create_load_capacity_chart(
     crane_name: str,
 ) -> go.Figure:
     """
-    Create a filled contour chart showing load capacity (Pmax) as a function
+    Create a colored scatter/heatmap chart showing load capacity (Pmax) as a function
     of outreach (TP_y_m) and height (TP_z_m).
     
     This creates a chart similar to typical crane load charts with colored
@@ -49,20 +49,29 @@ def create_load_capacity_chart(
     # Handle the data matrices
     # Ensure all arrays have the same shape
     if tp_y.shape != tp_z.shape or tp_y.shape != pmax.shape:
-        # Try to work with what we have
         min_rows = min(tp_y.shape[0], tp_z.shape[0], pmax.shape[0])
         min_cols = min(tp_y.shape[1], tp_z.shape[1], pmax.shape[1])
         tp_y = tp_y[:min_rows, :min_cols]
         tp_z = tp_z[:min_rows, :min_cols]
         pmax = pmax[:min_rows, :min_cols]
     
+    # Flatten arrays for scatter plot
+    y_flat = tp_y.flatten()
+    z_flat = tp_z.flatten()
+    p_flat = pmax.flatten()
+    
+    # Remove NaN values
+    valid_mask = ~(np.isnan(y_flat) | np.isnan(z_flat) | np.isnan(p_flat))
+    y_valid = y_flat[valid_mask]
+    z_valid = z_flat[valid_mask]
+    p_valid = p_flat[valid_mask]
+    
     # Get the range of Pmax for color scale
-    pmax_valid = pmax[~np.isnan(pmax)]
-    if len(pmax_valid) == 0:
+    if len(p_valid) == 0:
         pmax_min, pmax_max = 0, 100
     else:
-        pmax_min = float(np.nanmin(pmax_valid))
-        pmax_max = float(np.nanmax(pmax_valid))
+        pmax_min = float(np.min(p_valid))
+        pmax_max = float(np.max(p_valid))
     
     # Create figure
     fig = go.Figure()
@@ -82,38 +91,33 @@ def create_load_capacity_chart(
         [1.0, '#800026'],      # Dark red (high)
     ]
     
-    # Add filled contour using scatter with markers
-    # First create the contour fill
+    # Add scatter plot with color based on Pmax
     fig.add_trace(
-        go.Contour(
-            x=tp_y.flatten(),
-            y=tp_z.flatten(),
-            z=pmax.flatten(),
-            colorscale=colorscale,
-            contours=dict(
-                start=pmax_min,
-                end=pmax_max,
-                size=(pmax_max - pmax_min) / 10 if pmax_max > pmax_min else 10,
-                showlabels=True,
-                labelfont=dict(size=10, color='white'),
-            ),
-            colorbar=dict(
-                title=dict(
-                    text="Pmax [t]",
-                    font=dict(size=12, color="#1f3b4d"),
+        go.Scatter(
+            x=y_valid,
+            y=z_valid,
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=p_valid,
+                colorscale=colorscale,
+                cmin=pmax_min,
+                cmax=pmax_max,
+                colorbar=dict(
+                    title=dict(
+                        text="Pmax [t]",
+                        font=dict(size=12, color="#1f3b4d"),
+                    ),
+                    tickfont=dict(size=10),
+                    len=0.9,
+                    thickness=20,
                 ),
-                tickfont=dict(size=10),
-                len=0.9,
-                thickness=20,
-            ),
-            line=dict(
-                color='rgba(255,255,0,0.5)',
-                width=1,
+                showscale=True,
             ),
             hovertemplate=(
                 "<b>Outreach:</b> %{x:.1f} m<br>"
                 "<b>Height:</b> %{y:.1f} m<br>"
-                "<b>Pmax:</b> %{z:.1f} t<br>"
+                "<b>Pmax:</b> %{marker.color:.1f} t<br>"
                 "<extra></extra>"
             ),
             name="Load Capacity",
@@ -121,7 +125,6 @@ def create_load_capacity_chart(
     )
     
     # Calculate dynamic coefficient (Cdyn) - typically around 1.15 for offshore cranes
-    # This is shown in the reference image title
     cdyn = 1.15
     
     # Update layout to match the style of the reference image
