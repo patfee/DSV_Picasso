@@ -1,4 +1,4 @@
-"""Page 2 - Subpage 2: Capacity Calculator with Load Chart."""
+"""Page 2 - Subpage 3: Capacity Calculator with Heatmap."""
 
 from typing import Any, Optional
 
@@ -11,31 +11,31 @@ from styles import CARD_STYLE
 
 
 def render() -> html.Div:
-    """Render the capacity calculator page with 3D surface chart."""
+    """Render the capacity calculator page with heatmap."""
     return html.Div(
         [
-            html.H3("Capacity Calculator - 3D Surface"),
+            html.H3("Capacity Calculator - Heatmap"),
             html.P(
-                "Select a crane configuration on Page 1 to view the load capacity 3D surface.",
+                "Select a crane configuration on Page 1 to view the load capacity heatmap.",
                 style={"marginBottom": "20px", "color": "#666"},
             ),
-            html.Div(id="load-capacity-chart-container"),
+            html.Div(id="load-capacity-heatmap-container"),
         ]
     )
 
 
-def create_load_capacity_chart(
+def create_load_capacity_heatmap(
     tp_y: np.ndarray,
     tp_z: np.ndarray,
     pmax: np.ndarray,
     crane_name: str,
 ) -> go.Figure:
     """
-    Create a 3D surface plot showing load capacity (Pmax) as a function
+    Create a heatmap showing load capacity (Pmax) as a function
     of outreach (TP_y_m) and height (TP_z_m).
 
-    This creates a 3D visualization where the surface height represents
-    load capacity at different crane positions.
+    This creates a clean, grid-based visualization of load capacity
+    at different crane positions.
 
     Args:
         tp_y: TP_y_m matrix (outreach values in meters)
@@ -47,7 +47,7 @@ def create_load_capacity_chart(
         Plotly figure object
     """
     from scipy.interpolate import griddata
-    
+
     # Handle the data matrices
     if tp_y.shape != tp_z.shape or tp_y.shape != pmax.shape:
         min_rows = min(tp_y.shape[0], tp_z.shape[0], pmax.shape[0])
@@ -55,34 +55,34 @@ def create_load_capacity_chart(
         tp_y = tp_y[:min_rows, :min_cols]
         tp_z = tp_z[:min_rows, :min_cols]
         pmax = pmax[:min_rows, :min_cols]
-    
+
     # Flatten arrays
     y_flat = tp_y.flatten()
     z_flat = tp_z.flatten()
     p_flat = pmax.flatten()
-    
+
     # Remove NaN values
     valid_mask = ~(np.isnan(y_flat) | np.isnan(z_flat) | np.isnan(p_flat))
     y_valid = y_flat[valid_mask]
     z_valid = z_flat[valid_mask]
     p_valid = p_flat[valid_mask]
-    
+
     if len(p_valid) == 0:
         # Return empty figure if no valid data
         fig = go.Figure()
         fig.add_annotation(text="No valid data", xref="paper", yref="paper", x=0.5, y=0.5)
         return fig
-    
+
     # Create regular grid for interpolation
     y_min, y_max = float(np.min(y_valid)), float(np.max(y_valid))
     z_min, z_max = float(np.min(z_valid)), float(np.max(z_valid))
-    
-    # Create grid with reasonable resolution
-    grid_size = 100
+
+    # Create grid with reasonable resolution for heatmap
+    grid_size = 80
     yi = np.linspace(y_min, y_max, grid_size)
     zi = np.linspace(z_min, z_max, grid_size)
     Yi, Zi = np.meshgrid(yi, zi)
-    
+
     # Interpolate Pmax onto regular grid
     Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
 
@@ -103,19 +103,18 @@ def create_load_capacity_chart(
         inside_hull = hull_path.contains_points(grid_points).reshape(Yi.shape)
 
         # Additional distance-based refinement for concave regions
-        # Mask points that are too far from any actual data point
         from scipy.spatial.distance import cdist
         distances = cdist(grid_points, valid_points).min(axis=1).reshape(Yi.shape)
 
         # Calculate conservative threshold based on data spacing
         avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
         avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
-        max_distance = min(avg_spacing_y, avg_spacing_z) * 0.8  # Very conservative
+        max_distance = min(avg_spacing_y, avg_spacing_z) * 0.8
 
         # Combine both constraints: must be inside hull AND close to data
         valid_mask = inside_hull & (distances < max_distance)
         Pi = np.where(valid_mask, Pi, np.nan)
-    except Exception as e:
+    except Exception:
         # If masking fails, use basic distance masking as fallback
         try:
             from scipy.spatial.distance import cdist
@@ -127,7 +126,7 @@ def create_load_capacity_chart(
             Pi = np.where(mask, Pi, np.nan)
         except:
             pass
-    
+
     # Get Pmax range
     pmax_min = float(np.min(p_valid))
     pmax_max = float(np.max(p_valid))
@@ -135,7 +134,7 @@ def create_load_capacity_chart(
     # Create figure
     fig = go.Figure()
 
-    # Create colorscale for the surface
+    # Create colorscale for the heatmap
     colorscale = [
         [0.0, '#0000FF'],     # Blue (low capacity)
         [0.25, '#00FFFF'],    # Cyan
@@ -144,9 +143,9 @@ def create_load_capacity_chart(
         [1.0, '#FF0000'],     # Red (high capacity)
     ]
 
-    # Add 3D surface
+    # Add heatmap
     fig.add_trace(
-        go.Surface(
+        go.Heatmap(
             x=yi,
             y=zi,
             z=Pi,
@@ -157,9 +156,8 @@ def create_load_capacity_chart(
                     font=dict(size=12, color="#1f3b4d"),
                 ),
                 tickfont=dict(size=10),
-                len=0.7,
+                len=0.9,
                 thickness=20,
-                x=1.02,
             ),
             hovertemplate=(
                 "<b>Outreach:</b> %{x:.1f} m<br>"
@@ -167,58 +165,67 @@ def create_load_capacity_chart(
                 "<b>Pmax:</b> %{z:.1f} t<br>"
                 "<extra></extra>"
             ),
+            zmin=pmax_min,
+            zmax=pmax_max,
             name="Load Capacity",
-            contours=dict(
-                z=dict(
-                    show=True,
-                    usecolormap=True,
-                    highlightcolor="white",
-                    project=dict(z=True)
-                )
-            ),
         )
     )
+
+    # Add boundary outline using the original data points
+    boundary_points = _compute_envelope_boundary(tp_y, tp_z)
+    if boundary_points is not None:
+        fig.add_trace(
+            go.Scatter(
+                x=boundary_points[:, 0],
+                y=boundary_points[:, 1],
+                mode='lines',
+                line=dict(color='#1a1a2e', width=3),
+                name='Envelope',
+                hoverinfo='skip',
+            )
+        )
 
     # Dynamic coefficient
     cdyn = 1.15
 
-    # Update layout for 3D
+    # Update layout
     fig.update_layout(
         title=dict(
-            text=f"Load Capacity Surface (Cdyn={cdyn:.2f})",
+            text=f"Load Capacity Heatmap (Cdyn={cdyn:.2f})",
             font=dict(size=14, color="#1f3b4d"),
             x=0.5,
-            y=0.95,
+            y=0.98,
         ),
-        scene=dict(
-            xaxis=dict(
-                title="Outreach [m]",
-                gridcolor="rgba(100,150,150,0.3)",
-                showbackground=True,
-                backgroundcolor="rgba(230, 230, 250, 0.5)",
-            ),
-            yaxis=dict(
-                title="Height [m]",
-                gridcolor="rgba(100,150,150,0.3)",
-                showbackground=True,
-                backgroundcolor="rgba(230, 250, 230, 0.5)",
-            ),
-            zaxis=dict(
-                title="Pmax [t]",
-                gridcolor="rgba(100,150,150,0.3)",
-                showbackground=True,
-                backgroundcolor="rgba(250, 230, 230, 0.5)",
-            ),
-            camera=dict(
-                eye=dict(x=1.5, y=1.5, z=1.3),
-                center=dict(x=0, y=0, z=0),
-            ),
+        xaxis=dict(
+            title="Outreach [m]",
+            gridcolor="rgba(100,150,150,0.5)",
+            gridwidth=1,
+            zeroline=True,
+            zerolinecolor="rgba(100,150,150,0.6)",
+            zerolinewidth=1.5,
+            showgrid=True,
+            dtick=2,
+            tickfont=dict(size=10),
+            title_font=dict(size=12),
         ),
+        yaxis=dict(
+            title="Height [m]",
+            gridcolor="rgba(100,150,150,0.5)",
+            gridwidth=1,
+            zeroline=True,
+            zerolinecolor="rgba(100,150,150,0.6)",
+            zerolinewidth=1.5,
+            showgrid=True,
+            dtick=2,
+            tickfont=dict(size=10),
+            title_font=dict(size=12),
+        ),
+        plot_bgcolor="rgba(20,60,80,0.4)",
         paper_bgcolor="white",
         hovermode="closest",
         showlegend=False,
-        margin=dict(l=0, r=0, t=50, b=0),
-        height=700,
+        margin=dict(l=60, r=80, t=50, b=60),
+        height=650,
     )
 
     return fig
@@ -227,68 +234,68 @@ def create_load_capacity_chart(
 def _compute_envelope_boundary(tp_y: np.ndarray, tp_z: np.ndarray) -> np.ndarray:
     """
     Compute the boundary envelope by tracing the matrix edges.
-    
+
     Args:
         tp_y: TP_y_m matrix
         tp_z: TP_z_m matrix
-    
+
     Returns:
         Array of boundary points or None
     """
     try:
         if tp_y.ndim != 2 or tp_z.ndim != 2:
             return None
-        
+
         rows, cols = tp_y.shape
         boundary_y = []
         boundary_z = []
-        
+
         # Trace perimeter: top edge (first row)
         for j in range(cols):
             if not np.isnan(tp_y[0, j]) and not np.isnan(tp_z[0, j]):
                 boundary_y.append(tp_y[0, j])
                 boundary_z.append(tp_z[0, j])
-        
+
         # Right edge (last column)
         for i in range(1, rows):
             if not np.isnan(tp_y[i, -1]) and not np.isnan(tp_z[i, -1]):
                 boundary_y.append(tp_y[i, -1])
                 boundary_z.append(tp_z[i, -1])
-        
+
         # Bottom edge (last row, reversed)
         for j in range(cols - 2, -1, -1):
             if not np.isnan(tp_y[-1, j]) and not np.isnan(tp_z[-1, j]):
                 boundary_y.append(tp_y[-1, j])
                 boundary_z.append(tp_z[-1, j])
-        
+
         # Left edge (first column, reversed)
         for i in range(rows - 2, 0, -1):
             if not np.isnan(tp_y[i, 0]) and not np.isnan(tp_z[i, 0]):
                 boundary_y.append(tp_y[i, 0])
                 boundary_z.append(tp_z[i, 0])
-        
+
         if not boundary_y:
             return None
-        
+
         # Close the boundary
         boundary_y.append(boundary_y[0])
         boundary_z.append(boundary_z[0])
-        
+
         return np.column_stack((boundary_y, boundary_z))
     except Exception:
         return None
 
 
-def register_load_chart_callback(app: Any) -> None:
-    """Register callback for the load capacity chart."""
-    
+def register_heatmap_callback(app: Any) -> None:
+    """Register callback for the load capacity heatmap."""
+
     @app.callback(
-        Output("load-capacity-chart-container", "children"),
+        Output("load-capacity-heatmap-container", "children"),
         Input("selected-crane-file", "data"),
         Input("pedestal-height", "data"),
     )
-    def update_load_chart(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
-        """Update the load capacity chart based on selected crane file."""
+    def update_heatmap(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
+        """Update the load capacity heatmap based on selected crane file."""
         if not filename:
             return html.Div(
                 [
@@ -300,14 +307,14 @@ def register_load_chart_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
-        
+
         # Default pedestal height
         if pedestal_height is None:
             pedestal_height = 6.0
-        
+
         # Import here to avoid circular imports
         from crane_data import load_crane_file
-        
+
         try:
             data = load_crane_file(filename)
         except Exception as e:
@@ -317,11 +324,11 @@ def register_load_chart_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
-        
+
         tp_y = data.get("TP_y_m")
         tp_z = data.get("TP_z_m")
         pmax = data.get("Pmax")
-        
+
         if tp_y is None or tp_z is None:
             return html.Div(
                 [
@@ -332,7 +339,7 @@ def register_load_chart_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
-        
+
         if pmax is None:
             return html.Div(
                 [
@@ -343,7 +350,7 @@ def register_load_chart_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
-        
+
         # Ensure arrays are 2D
         if tp_y.ndim == 1:
             tp_y = tp_y.reshape(1, -1)
@@ -351,21 +358,21 @@ def register_load_chart_callback(app: Any) -> None:
             tp_z = tp_z.reshape(1, -1)
         if pmax.ndim == 1:
             pmax = pmax.reshape(1, -1)
-        
+
         # Add pedestal height to TP_z_m
         tp_z_adjusted = tp_z + pedestal_height
-        
+
         # Get crane name from filename
         crane_name = filename.replace(".mat", "").replace("_", " ")
-        
+
         # Get load capacity statistics
         pmax_valid = pmax[~np.isnan(pmax)]
         pmax_min = float(np.nanmin(pmax_valid)) if len(pmax_valid) > 0 else 0
         pmax_max = float(np.nanmax(pmax_valid)) if len(pmax_valid) > 0 else 0
-        
-        # Create the chart
-        fig = create_load_capacity_chart(tp_y, tp_z_adjusted, pmax, crane_name)
-        
+
+        # Create the heatmap
+        fig = create_load_capacity_heatmap(tp_y, tp_z_adjusted, pmax, crane_name)
+
         return html.Div(
             [
                 html.Div(
@@ -394,8 +401,8 @@ def register_load_chart_callback(app: Any) -> None:
                 html.Div(
                     [
                         html.P(
-                            "💡 Tip: Hover over the surface to see exact Outreach, Height, and Load Capacity (Pmax) values. "
-                            "Click and drag to rotate the 3D view. Use the toolbar to zoom, pan, or save the chart.",
+                            "💡 Tip: Hover over the heatmap to see exact Outreach, Height, and Load Capacity (Pmax) values. "
+                            "Use the toolbar to zoom, pan, or save the chart.",
                             style={"color": "#666", "fontSize": "13px", "marginTop": "10px"},
                         ),
                     ]
