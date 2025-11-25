@@ -113,10 +113,10 @@ def create_load_capacity_chart(
         from scipy.spatial.distance import cdist
         distances = cdist(grid_points, valid_points).min(axis=1).reshape(Yi.shape)
 
-        # Calculate less conservative threshold to get closer to envelope
+        # Calculate balanced threshold to fill gaps without overshooting envelope
         avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
         avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
-        max_distance = min(avg_spacing_y, avg_spacing_z) * 2.5  # Relaxed from 0.8 to 2.5
+        max_distance = min(avg_spacing_y, avg_spacing_z) * 1.3  # Balanced: fills gaps without overshoot
 
         # Combine both constraints: must be inside hull AND reasonably close to data
         valid_mask = inside_hull & (distances < max_distance)
@@ -129,7 +129,7 @@ def create_load_capacity_chart(
             valid_points = np.column_stack((y_valid, z_valid))
             distances = cdist(grid_flat, valid_points).min(axis=1)
             avg_spacing = ((y_max - y_min) + (z_max - z_min)) / (2 * np.sqrt(len(y_valid)))
-            mask = (distances < avg_spacing * 2.0).reshape(Yi.shape)  # Relaxed from 0.5 to 2.0
+            mask = (distances < avg_spacing * 1.3).reshape(Yi.shape)  # Balanced: fills gaps without overshoot
             Pi = np.where(mask, Pi, np.nan)
         except:
             pass
