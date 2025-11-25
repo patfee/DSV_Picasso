@@ -72,8 +72,8 @@ def create_outreach_height_chart(
         )
     )
     
-    # Calculate the boundary using alpha shape (concave hull)
-    boundary_points = compute_boundary(y_valid, z_valid)
+    # Calculate the boundary using outer contour
+    boundary_points = compute_outer_boundary(y_valid, z_valid)
     if boundary_points is not None and len(boundary_points) > 0:
         fig.add_trace(
             go.Scatter(
@@ -130,147 +130,94 @@ def create_outreach_height_chart(
     return fig
 
 
-def compute_boundary(x: np.ndarray, y: np.ndarray) -> Optional[np.ndarray]:
+def compute_outer_boundary(x: np.ndarray, y: np.ndarray) -> Optional[np.ndarray]:
     """
-    Compute the boundary of a point cloud using alpha shape algorithm.
-    This creates a concave hull that follows the outer points closely.
+    Compute the outer boundary by finding the furthest point in each angular sector.
+    This works well for crane envelope data that radiates from a pivot point.
     
     Args:
-        x: X coordinates
-        y: Y coordinates
+        x: X coordinates (outreach)
+        y: Y coordinates (height)
     
     Returns:
         Array of boundary points in order, or None if computation fails
     """
     try:
-        from scipy.spatial import Delaunay
-        
         points = np.column_stack((x, y))
         
         if len(points) < 3:
             return None
         
-        # Compute Delaunay triangulation
-        tri = Delaunay(points)
+        # Find the centroid (approximate pivot point)
+        # For crane data, use the leftmost point's x and middle y as reference
+        x_min = np.min(x)
+        y_at_xmin = y[np.argmin(x)]
         
-        # Find edges and their frequency (boundary edges appear once)
-        edges = {}
-        for simplex in tri.simplices:
-            for i in range(3):
-                edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
-                edges[edge] = edges.get(edge, 0) + 1
+        # Use a point to the left of all data as the reference origin
+        ref_x = x_min - 1
+        ref_y = np.mean(y)
         
-        # Get all edges (for alpha shape we need to filter by edge length)
-        # Calculate alpha based on typical point spacing
-        all_edge_lengths = []
-        for (i, j) in edges.keys():
-            length = np.sqrt((points[i, 0] - points[j, 0])**2 + 
-                           (points[i, 1] - points[j, 1])**2)
-            all_edge_lengths.append(length)
+        # Calculate angle and distance from reference point for each data point
+        dx = x - ref_x
+        dy = y - ref_y
+        angles = np.arctan2(dy, dx)
+        distances = np.sqrt(dx**2 + dy**2)
         
-        # Use a threshold based on the distribution of edge lengths
-        # This filters out long edges that cut across the shape
-        median_length = np.median(all_edge_lengths)
-        alpha_threshold = median_length * 2.5  # Adjust this multiplier for tighter/looser fit
+        # Divide into angular sectors and find the furthest point in each
+        num_sectors = 360
+        sector_size = 2 * np.pi / num_sectors
         
-        # Find boundary edges: edges that appear once AND are shorter than threshold
-        boundary_edges = []
-        for (i, j), count in edges.items():
-            length = np.sqrt((points[i, 0] - points[j, 0])**2 + 
-                           (points[i, 1] - points[j, 1])**2)
-            # Include edge if it's a boundary edge (count==1) or if it's short enough
-            if count == 1 and length <= alpha_threshold:
-                boundary_edges.append((i, j))
+        boundary_indices = []
         
-        if not boundary_edges:
-            # Fallback to convex hull if alpha shape fails
+        for i in range(num_sectors):
+            angle_min = -np.pi + i * sector_size
+            angle_max = angle_min + sector_size
+            
+            # Find points in this sector
+            in_sector = (angles >= angle_min) & (angles < angle_max)
+            
+            if np.any(in_sector):
+                # Get the furthest point in this sector
+                sector_distances = distances.copy()
+                sector_distances[~in_sector] = -1
+                furthest_idx = np.argmax(sector_distances)
+                boundary_indices.append(furthest_idx)
+        
+        if not boundary_indices:
+            return None
+        
+        # Get unique boundary points while preserving order
+        seen = set()
+        unique_indices = []
+        for idx in boundary_indices:
+            if idx not in seen:
+                seen.add(idx)
+                unique_indices.append(idx)
+        
+        boundary_points = points[unique_indices]
+        
+        # Sort by angle to ensure proper ordering
+        bp_dx = boundary_points[:, 0] - ref_x
+        bp_dy = boundary_points[:, 1] - ref_y
+        bp_angles = np.arctan2(bp_dy, bp_dx)
+        sorted_indices = np.argsort(bp_angles)
+        boundary_points = boundary_points[sorted_indices]
+        
+        # Close the boundary
+        boundary_points = np.vstack([boundary_points, boundary_points[0]])
+        
+        return boundary_points
+        
+    except Exception:
+        # Fallback to convex hull
+        try:
             from scipy.spatial import ConvexHull
+            points = np.column_stack((x, y))
             hull = ConvexHull(points)
             hull_points = points[hull.vertices]
             return np.vstack([hull_points, hull_points[0]])
-        
-        # Order the boundary edges to form a continuous path
-        ordered_points = order_boundary_edges(boundary_edges, points)
-        
-        if ordered_points is not None:
-            return ordered_points
-        
-        # Fallback to convex hull
-        from scipy.spatial import ConvexHull
-        hull = ConvexHull(points)
-        hull_points = points[hull.vertices]
-        return np.vstack([hull_points, hull_points[0]])
-        
-    except Exception:
-        return None
-
-
-def order_boundary_edges(edges: List[Tuple[int, int]], points: np.ndarray) -> Optional[np.ndarray]:
-    """
-    Order boundary edges to form a continuous closed path.
-    
-    Args:
-        edges: List of edge tuples (point indices)
-        points: Array of point coordinates
-    
-    Returns:
-        Ordered array of boundary points forming a closed path
-    """
-    if not edges:
-        return None
-    
-    # Build adjacency list
-    adjacency = {}
-    for i, j in edges:
-        if i not in adjacency:
-            adjacency[i] = []
-        if j not in adjacency:
-            adjacency[j] = []
-        adjacency[i].append(j)
-        adjacency[j].append(i)
-    
-    # Find the longest connected boundary
-    visited = set()
-    all_paths = []
-    
-    for start_node in adjacency:
-        if start_node in visited:
-            continue
-        
-        # BFS/DFS to find connected component
-        path = []
-        stack = [start_node]
-        component_visited = set()
-        
-        # Try to form a cycle
-        current = start_node
-        path = [current]
-        component_visited.add(current)
-        
-        while True:
-            neighbors = [n for n in adjacency[current] if n not in component_visited]
-            if not neighbors:
-                break
-            current = neighbors[0]
-            path.append(current)
-            component_visited.add(current)
-        
-        visited.update(component_visited)
-        all_paths.append(path)
-    
-    # Use the longest path
-    if not all_paths:
-        return None
-    
-    longest_path = max(all_paths, key=len)
-    
-    # Convert to coordinates and close the path
-    boundary_coords = points[longest_path]
-    
-    # Close the path
-    boundary_coords = np.vstack([boundary_coords, boundary_coords[0]])
-    
-    return boundary_coords
+        except Exception:
+            return None
 
 
 def register_chart_callback(app: Any) -> None:
