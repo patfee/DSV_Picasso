@@ -86,29 +86,47 @@ def create_load_capacity_chart(
     # Interpolate Pmax onto regular grid
     Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
 
-    # Mask values outside the operational envelope
-    # Use alpha shape / distance-based masking to keep only valid regions
-    from scipy.spatial.distance import cdist
+    # Mask values outside the operational envelope using convex hull
     try:
-        # For each grid point, check if it's close enough to actual data
-        # This prevents extrapolation outside the operational envelope
-        grid_flat = np.column_stack((Yi.flatten(), Zi.flatten()))
+        from scipy.spatial import ConvexHull
+
+        # Create convex hull from valid data points
         valid_points = np.column_stack((y_valid, z_valid))
+        hull = ConvexHull(valid_points)
 
-        # Calculate minimum distance to nearest valid point
-        distances = cdist(grid_flat, valid_points).min(axis=1)
+        # Get hull vertices to create the boundary polygon
+        from matplotlib.path import Path
+        hull_path = Path(valid_points[hull.vertices])
 
-        # Mask points that are too far from any valid data
-        # Use much stricter threshold to prevent extending beyond envelope
-        # Calculate typical spacing between data points
+        # Test each grid point for containment within the hull
+        grid_points = np.column_stack((Yi.flatten(), Zi.flatten()))
+        inside_hull = hull_path.contains_points(grid_points).reshape(Yi.shape)
+
+        # Additional distance-based refinement for concave regions
+        # Mask points that are too far from any actual data point
+        from scipy.spatial.distance import cdist
+        distances = cdist(grid_points, valid_points).min(axis=1).reshape(Yi.shape)
+
+        # Calculate conservative threshold based on data spacing
         avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
         avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
-        spacing = min(avg_spacing_y, avg_spacing_z) * 1.5
-        mask = (distances < spacing).reshape(Yi.shape)
-        Pi = np.where(mask, Pi, np.nan)
-    except:
-        # If masking fails, continue without it
-        pass
+        max_distance = min(avg_spacing_y, avg_spacing_z) * 0.8  # Very conservative
+
+        # Combine both constraints: must be inside hull AND close to data
+        valid_mask = inside_hull & (distances < max_distance)
+        Pi = np.where(valid_mask, Pi, np.nan)
+    except Exception as e:
+        # If masking fails, use basic distance masking as fallback
+        try:
+            from scipy.spatial.distance import cdist
+            grid_flat = np.column_stack((Yi.flatten(), Zi.flatten()))
+            valid_points = np.column_stack((y_valid, z_valid))
+            distances = cdist(grid_flat, valid_points).min(axis=1)
+            avg_spacing = ((y_max - y_min) + (z_max - z_min)) / (2 * np.sqrt(len(y_valid)))
+            mask = (distances < avg_spacing * 0.5).reshape(Yi.shape)
+            Pi = np.where(mask, Pi, np.nan)
+        except:
+            pass
     
     # Get Pmax range
     pmax_min = float(np.min(p_valid))
