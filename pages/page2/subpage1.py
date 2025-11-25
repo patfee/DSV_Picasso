@@ -72,8 +72,8 @@ def create_outreach_height_chart(
         )
     )
     
-    # Calculate the boundary using outer contour
-    boundary_points = compute_outer_boundary(y_valid, z_valid)
+    # Calculate the boundary by tracing the matrix edges
+    boundary_points = compute_matrix_boundary(tp_y, tp_z)
     if boundary_points is not None and len(boundary_points) > 0:
         fig.add_trace(
             go.Scatter(
@@ -130,94 +130,64 @@ def create_outreach_height_chart(
     return fig
 
 
-def compute_outer_boundary(x: np.ndarray, y: np.ndarray) -> Optional[np.ndarray]:
+def compute_matrix_boundary(tp_y: np.ndarray, tp_z: np.ndarray) -> Optional[np.ndarray]:
     """
-    Compute the outer boundary by finding the furthest point in each angular sector.
-    This works well for crane envelope data that radiates from a pivot point.
+    Compute the boundary by tracing the edges of the matrix.
+    The matrix represents a grid of crane positions, so the boundary
+    is formed by the perimeter of this grid.
     
     Args:
-        x: X coordinates (outreach)
-        y: Y coordinates (height)
+        tp_y: TP_y_m matrix (outreach values)
+        tp_z: TP_z_m matrix (height values)
     
     Returns:
         Array of boundary points in order, or None if computation fails
     """
     try:
-        points = np.column_stack((x, y))
-        
-        if len(points) < 3:
+        if tp_y.ndim != 2 or tp_z.ndim != 2:
             return None
         
-        # Find the centroid (approximate pivot point)
-        # For crane data, use the leftmost point's x and middle y as reference
-        x_min = np.min(x)
-        y_at_xmin = y[np.argmin(x)]
+        rows, cols = tp_y.shape
         
-        # Use a point to the left of all data as the reference origin
-        ref_x = x_min - 1
-        ref_y = np.mean(y)
+        boundary_y = []
+        boundary_z = []
         
-        # Calculate angle and distance from reference point for each data point
-        dx = x - ref_x
-        dy = y - ref_y
-        angles = np.arctan2(dy, dx)
-        distances = np.sqrt(dx**2 + dy**2)
+        # Trace the perimeter of the matrix:
+        # 1. First row (left to right) - top edge
+        for j in range(cols):
+            if not np.isnan(tp_y[0, j]) and not np.isnan(tp_z[0, j]):
+                boundary_y.append(tp_y[0, j])
+                boundary_z.append(tp_z[0, j])
         
-        # Divide into angular sectors and find the furthest point in each
-        num_sectors = 360
-        sector_size = 2 * np.pi / num_sectors
+        # 2. Last column (top to bottom, skip first) - right edge
+        for i in range(1, rows):
+            if not np.isnan(tp_y[i, -1]) and not np.isnan(tp_z[i, -1]):
+                boundary_y.append(tp_y[i, -1])
+                boundary_z.append(tp_z[i, -1])
         
-        boundary_indices = []
+        # 3. Last row (right to left, skip last) - bottom edge
+        for j in range(cols - 2, -1, -1):
+            if not np.isnan(tp_y[-1, j]) and not np.isnan(tp_z[-1, j]):
+                boundary_y.append(tp_y[-1, j])
+                boundary_z.append(tp_z[-1, j])
         
-        for i in range(num_sectors):
-            angle_min = -np.pi + i * sector_size
-            angle_max = angle_min + sector_size
-            
-            # Find points in this sector
-            in_sector = (angles >= angle_min) & (angles < angle_max)
-            
-            if np.any(in_sector):
-                # Get the furthest point in this sector
-                sector_distances = distances.copy()
-                sector_distances[~in_sector] = -1
-                furthest_idx = np.argmax(sector_distances)
-                boundary_indices.append(furthest_idx)
+        # 4. First column (bottom to top, skip first and last) - left edge
+        for i in range(rows - 2, 0, -1):
+            if not np.isnan(tp_y[i, 0]) and not np.isnan(tp_z[i, 0]):
+                boundary_y.append(tp_y[i, 0])
+                boundary_z.append(tp_z[i, 0])
         
-        if not boundary_indices:
+        if not boundary_y:
             return None
-        
-        # Get unique boundary points while preserving order
-        seen = set()
-        unique_indices = []
-        for idx in boundary_indices:
-            if idx not in seen:
-                seen.add(idx)
-                unique_indices.append(idx)
-        
-        boundary_points = points[unique_indices]
-        
-        # Sort by angle to ensure proper ordering
-        bp_dx = boundary_points[:, 0] - ref_x
-        bp_dy = boundary_points[:, 1] - ref_y
-        bp_angles = np.arctan2(bp_dy, bp_dx)
-        sorted_indices = np.argsort(bp_angles)
-        boundary_points = boundary_points[sorted_indices]
         
         # Close the boundary
-        boundary_points = np.vstack([boundary_points, boundary_points[0]])
+        boundary_y.append(boundary_y[0])
+        boundary_z.append(boundary_z[0])
         
-        return boundary_points
+        return np.column_stack((boundary_y, boundary_z))
         
     except Exception:
-        # Fallback to convex hull
-        try:
-            from scipy.spatial import ConvexHull
-            points = np.column_stack((x, y))
-            hull = ConvexHull(points)
-            hull_points = points[hull.vertices]
-            return np.vstack([hull_points, hull_points[0]])
-        except Exception:
-            return None
+        return None
 
 
 def register_chart_callback(app: Any) -> None:
