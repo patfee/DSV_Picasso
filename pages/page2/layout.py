@@ -7,7 +7,7 @@ from dash import html
 from components import create_page_layout, create_tab_callback
 
 from .subpage1 import render as render_subpage1, register_chart_callback
-from .subpage2 import render as render_subpage2
+from .subpage2 import render as render_subpage2, register_load_chart_callback
 
 __all__ = ["layout", "register_callbacks"]
 
@@ -39,3 +39,6 @@ def register_callbacks(app: Any) -> None:
 
     # Register chart callback
     register_chart_callback(app)
+    
+    # Register load capacity chart callback
+    register_load_chart_callback(app)
