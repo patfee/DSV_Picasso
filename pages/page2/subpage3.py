@@ -83,8 +83,14 @@ def create_load_capacity_heatmap(
     zi = np.linspace(z_min, z_max, grid_size)
     Yi, Zi = np.meshgrid(yi, zi)
 
-    # Interpolate Pmax onto regular grid
+    # Interpolate Pmax onto regular grid using linear interpolation
     Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
+
+    # Fill remaining NaN values using nearest-neighbor interpolation to reduce blanks
+    nan_mask = np.isnan(Pi)
+    if np.any(nan_mask):
+        Pi_nearest = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='nearest')
+        Pi = np.where(nan_mask, Pi_nearest, Pi)
 
     # Mask values outside the operational envelope using convex hull
     try:
@@ -106,12 +112,12 @@ def create_load_capacity_heatmap(
         from scipy.spatial.distance import cdist
         distances = cdist(grid_points, valid_points).min(axis=1).reshape(Yi.shape)
 
-        # Calculate conservative threshold based on data spacing
+        # Calculate less conservative threshold to get closer to envelope
         avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
         avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
-        max_distance = min(avg_spacing_y, avg_spacing_z) * 0.8
+        max_distance = min(avg_spacing_y, avg_spacing_z) * 2.5  # Relaxed from 0.8 to 2.5
 
-        # Combine both constraints: must be inside hull AND close to data
+        # Combine both constraints: must be inside hull AND reasonably close to data
         valid_mask = inside_hull & (distances < max_distance)
         Pi = np.where(valid_mask, Pi, np.nan)
     except Exception:
@@ -122,7 +128,7 @@ def create_load_capacity_heatmap(
             valid_points = np.column_stack((y_valid, z_valid))
             distances = cdist(grid_flat, valid_points).min(axis=1)
             avg_spacing = ((y_max - y_min) + (z_max - z_min)) / (2 * np.sqrt(len(y_valid)))
-            mask = (distances < avg_spacing * 0.5).reshape(Yi.shape)
+            mask = (distances < avg_spacing * 2.0).reshape(Yi.shape)  # Relaxed from 0.5 to 2.0
             Pi = np.where(mask, Pi, np.nan)
         except:
             pass
