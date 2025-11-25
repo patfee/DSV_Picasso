@@ -85,6 +85,27 @@ def create_load_capacity_chart(
     
     # Interpolate Pmax onto regular grid
     Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
+
+    # Mask values outside the operational envelope
+    # Use alpha shape / distance-based masking to keep only valid regions
+    from scipy.spatial.distance import cdist
+    try:
+        # For each grid point, check if it's close enough to actual data
+        # This prevents extrapolation outside the operational envelope
+        grid_flat = np.column_stack((Yi.flatten(), Zi.flatten()))
+        valid_points = np.column_stack((y_valid, z_valid))
+
+        # Calculate minimum distance to nearest valid point
+        distances = cdist(grid_flat, valid_points).min(axis=1)
+
+        # Mask points that are too far from any valid data
+        # Threshold based on typical spacing in the data
+        spacing = np.median([y_max - y_min, z_max - z_min]) / 20
+        mask = (distances < spacing).reshape(Yi.shape)
+        Pi = np.where(mask, Pi, np.nan)
+    except:
+        # If masking fails, continue without it
+        pass
     
     # Get Pmax range
     pmax_min = float(np.min(p_valid))
@@ -93,22 +114,18 @@ def create_load_capacity_chart(
     # Create figure
     fig = go.Figure()
     
-    # Create "jet" colorscale matching matplotlib's jet colormap
-    # Jet: dark blue -> cyan -> green -> yellow -> orange -> red -> dark red
+    # Create discrete "jet" colorscale with fewer bands
+    # Matching the reference image with clear color boundaries
     colorscale = [
-        [0.0, '#00007F'],     # Dark blue
-        [0.125, '#0000FF'],   # Blue
-        [0.25, '#007FFF'],    # Azure/Cyan
-        [0.375, '#00FFFF'],   # Cyan
-        [0.5, '#7FFF7F'],     # Light green
-        [0.625, '#FFFF00'],   # Yellow
-        [0.75, '#FF7F00'],    # Orange
-        [0.875, '#FF0000'],   # Red
-        [1.0, '#7F0000'],     # Dark red
+        [0.0, '#0000FF'],     # Blue (0)
+        [0.25, '#00FFFF'],    # Cyan (35)
+        [0.5, '#00FF00'],     # Green (70)
+        [0.75, '#FFFF00'],    # Yellow (105)
+        [1.0, '#FF0000'],     # Red (140)
     ]
 
-    # Create contour levels - more levels for smoother appearance
-    num_levels = 20
+    # Use fewer discrete contour levels for clear color bands
+    num_levels = 6
     contour_step = (pmax_max - pmax_min) / num_levels
     
     # Add filled contour
