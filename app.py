@@ -75,6 +75,7 @@ app.layout = html.Div(
     [
         dcc.Location(id="url"),
         dcc.Store(id="selected-crane-file", storage_type="session"),
+        dcc.Store(id="pedestal-height", storage_type="session", data=6),
         create_header(),
         html.Div(
             [

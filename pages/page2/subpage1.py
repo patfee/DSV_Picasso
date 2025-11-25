@@ -196,8 +196,9 @@ def register_chart_callback(app: Any) -> None:
     @app.callback(
         Output("outreach-height-chart-container", "children"),
         Input("selected-crane-file", "data"),
+        Input("pedestal-height", "data"),
     )
-    def update_chart(filename: Optional[str]) -> html.Div:
+    def update_chart(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
         """Update the chart based on selected crane file."""
         if not filename:
             return html.Div(
@@ -210,6 +211,10 @@ def register_chart_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
+        
+        # Default pedestal height
+        if pedestal_height is None:
+            pedestal_height = 6.0
         
         # Import here to avoid circular imports
         from crane_data import load_crane_file
@@ -238,11 +243,14 @@ def register_chart_callback(app: Any) -> None:
                 style=CARD_STYLE,
             )
         
+        # Add pedestal height to TP_z_m
+        tp_z_adjusted = tp_z + pedestal_height
+        
         # Get crane name from filename
         crane_name = filename.replace(".mat", "").replace("_", " ")
         
         # Create the chart
-        fig = create_outreach_height_chart(tp_y, tp_z, crane_name)
+        fig = create_outreach_height_chart(tp_y, tp_z_adjusted, crane_name)
         
         return html.Div(
             [
@@ -250,6 +258,7 @@ def register_chart_callback(app: Any) -> None:
                     [
                         html.P(f"📂 Currently viewing: ", style={"display": "inline"}),
                         html.Strong(filename.replace(".mat", "")),
+                        html.Span(f" | Pedestal height: {pedestal_height:.1f} m", style={"marginLeft": "15px", "color": "#666"}),
                     ],
                     style={
                         "marginBottom": "15px",

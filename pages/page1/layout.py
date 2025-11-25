@@ -140,5 +140,17 @@ def register_callbacks(app: Any) -> None:
 
         return filename, info
 
+    # Pedestal height callback
+    @app.callback(
+        Output("pedestal-height", "data"),
+        Input("pedestal-height-input", "value"),
+        prevent_initial_call=False,
+    )
+    def update_pedestal_height(value: Optional[float]) -> float:
+        """Update the pedestal height store."""
+        if value is None:
+            return 6  # Default value
+        return float(value)
+
     # Register data tables callback
     register_data_tables_callback(app)

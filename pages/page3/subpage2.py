@@ -127,8 +127,9 @@ def register_export_callbacks(app: Any) -> None:
     @app.callback(
         Output("export-container", "children"),
         Input("selected-crane-file", "data"),
+        Input("pedestal-height", "data"),
     )
-    def update_export_container(filename: Optional[str]) -> html.Div:
+    def update_export_container(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
         """Update export container based on selected crane file."""
         if not filename:
             return html.Div(
@@ -141,6 +142,10 @@ def register_export_callbacks(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
+        
+        # Default pedestal height
+        if pedestal_height is None:
+            pedestal_height = 6.0
         
         # Import here to avoid circular imports
         from crane_data import load_crane_file
@@ -164,10 +169,10 @@ def register_export_callbacks(app: Any) -> None:
         
         # Variable info for creating buttons
         variables = [
-            ("VMm", "VMm - Vertical Moment", "Vertical moment data matrix"),
-            ("VFm", "VFm - Vertical Force", "Vertical force data matrix"),
+            ("VMm", "VMm - Main Jib Angle (deg)", "Main jib angle data matrix"),
+            ("VFm", "VFm - Folding Jib Angle (deg)", "Folding jib angle data matrix"),
             ("TP_y_m", "TP_y_m - Tip Position Y", "Crane tip Y-position matrix"),
-            ("TP_z_m", "TP_z_m - Tip Position Z", "Crane tip Z-position matrix"),
+            ("TP_z_m", "TP_z_m - Tip Position Z", f"Crane tip Z-position matrix (includes pedestal height: +{pedestal_height:.1f} m)"),
             ("Pmax", "Pmax - Maximum Load", "Maximum load capacity matrix"),
         ]
         
@@ -217,6 +222,7 @@ def register_export_callbacks(app: Any) -> None:
                     [
                         html.P(f"📂 Exporting data from: ", style={"display": "inline"}),
                         html.Strong(filename.replace(".mat", "")),
+                        html.Span(f" | Pedestal height: {pedestal_height:.1f} m (applied to TP_z_m)", style={"marginLeft": "15px", "color": "#666"}),
                     ],
                     style={
                         "marginBottom": "20px",
@@ -235,17 +241,27 @@ def register_export_callbacks(app: Any) -> None:
             Output(f"download-{var_name}", "data"),
             Input(f"btn-download-{var_name}", "n_clicks"),
             Input("selected-crane-file", "data"),
+            Input("pedestal-height", "data"),
             prevent_initial_call=True,
         )
-        def download_variable(n_clicks, filename):
+        def download_variable(n_clicks, filename, pedestal_height):
             if not n_clicks or not filename:
                 return None
+            
+            # Default pedestal height
+            if pedestal_height is None:
+                pedestal_height = 6.0
             
             from crane_data import load_crane_file
             
             try:
                 data = load_crane_file(filename)
                 arr = data.get(var_name)
+                
+                # Apply pedestal height to TP_z_m
+                if var_name == "TP_z_m" and arr is not None:
+                    arr = arr + pedestal_height
+                
                 csv_string = array_to_csv_string(arr)
                 
                 if csv_string:
@@ -269,11 +285,16 @@ def register_export_callbacks(app: Any) -> None:
         Output("download-all-zip", "data"),
         Input("btn-download-all", "n_clicks"),
         Input("selected-crane-file", "data"),
+        Input("pedestal-height", "data"),
         prevent_initial_call=True,
     )
-    def download_all_zip(n_clicks, filename):
+    def download_all_zip(n_clicks, filename, pedestal_height):
         if not n_clicks or not filename:
             return None
+        
+        # Default pedestal height
+        if pedestal_height is None:
+            pedestal_height = 6.0
         
         import zipfile
         
@@ -288,6 +309,11 @@ def register_export_callbacks(app: Any) -> None:
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                 for var_name in ["VMm", "VFm", "TP_y_m", "TP_z_m", "Pmax"]:
                     arr = data.get(var_name)
+                    
+                    # Apply pedestal height to TP_z_m
+                    if var_name == "TP_z_m" and arr is not None:
+                        arr = arr + pedestal_height
+                    
                     csv_string = array_to_csv_string(arr)
                     if csv_string:
                         zf.writestr(f"{var_name}.csv", csv_string)

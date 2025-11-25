@@ -51,6 +51,33 @@ def render() -> html.Div:
                 ],
                 style=CARD_STYLE,
             ),
+            html.Div(
+                [
+                    html.Label(
+                        "Pedestal Height (m):",
+                        style={"fontWeight": "bold", "marginBottom": "8px", "display": "block"},
+                    ),
+                    dcc.Input(
+                        id="pedestal-height-input",
+                        type="number",
+                        value=6,
+                        min=0,
+                        max=50,
+                        step=0.1,
+                        style={
+                            "width": "150px",
+                            "padding": "8px",
+                            "border": "1px solid #ccc",
+                            "borderRadius": "4px",
+                        },
+                    ),
+                    html.P(
+                        "This value is added to all TP_z_m (height) values.",
+                        style={"color": "#666", "fontSize": "13px", "marginTop": "8px"},
+                    ),
+                ],
+                style={**CARD_STYLE, "marginTop": "15px"},
+            ),
             html.Div(id="crane-file-info", style=INFO_CONTAINER_STYLE),
         ]
     )

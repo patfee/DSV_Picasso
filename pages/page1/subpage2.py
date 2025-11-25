@@ -121,8 +121,9 @@ def register_data_tables_callback(app: Any) -> None:
     @app.callback(
         Output("data-tables-container", "children"),
         Input("selected-crane-file", "data"),
+        Input("pedestal-height", "data"),
     )
-    def update_data_tables(filename: Optional[str]) -> html.Div:
+    def update_data_tables(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
         """Update all data tables based on selected crane file."""
         if not filename:
             return html.Div(
@@ -135,6 +136,10 @@ def register_data_tables_callback(app: Any) -> None:
                 ],
                 style=CARD_STYLE,
             )
+        
+        # Default pedestal height
+        if pedestal_height is None:
+            pedestal_height = 6.0
         
         # Import here to avoid circular imports
         from crane_data import load_crane_file
@@ -207,17 +212,20 @@ def register_data_tables_callback(app: Any) -> None:
             )
         )
         
-        # TP_z_m Table
+        # TP_z_m Table (with pedestal height added)
         tp_z = data.get("TP_z_m")
+        tp_z_adjusted = None
+        if tp_z is not None:
+            tp_z_adjusted = tp_z + pedestal_height
         tables.append(
             html.Div(
                 [
                     html.H4("TP_z_m - Tip Position Z", style={"marginBottom": "5px"}),
                     html.P(
-                        f"{get_shape_str(tp_z)} | Values rounded to 2 decimal places",
+                        f"{get_shape_str(tp_z)} | Values rounded to 2 decimal places | Pedestal height: +{pedestal_height:.1f} m",
                         style={"color": "#666", "marginBottom": "10px", "fontSize": "14px"},
                     ),
-                    format_matrix_to_table(tp_z),
+                    format_matrix_to_table(tp_z_adjusted),
                 ],
                 style={**CARD_STYLE, "marginBottom": "20px"},
             )
@@ -245,6 +253,7 @@ def register_data_tables_callback(app: Any) -> None:
                     [
                         html.P(f"📂 Currently viewing: ", style={"display": "inline"}),
                         html.Strong(filename.replace(".mat", "")),
+                        html.Span(f" | Pedestal height: {pedestal_height:.1f} m", style={"marginLeft": "15px", "color": "#666"}),
                     ],
                     style={"marginBottom": "20px", "padding": "10px", "backgroundColor": "#e8f4e8", "borderRadius": "4px"},
                 ),
