@@ -57,20 +57,7 @@ def render() -> html.Div:
                         "Pedestal Height (m):",
                         style={"fontWeight": "bold", "marginBottom": "8px", "display": "block"},
                     ),
-                    dcc.Input(
-                        id="pedestal-height-input",
-                        type="number",
-                        value=6,
-                        min=0,
-                        max=50,
-                        step=0.1,
-                        style={
-                            "width": "150px",
-                            "padding": "8px",
-                            "border": "1px solid #ccc",
-                            "borderRadius": "4px",
-                        },
-                    ),
+                    html.Div(id="pedestal-height-input-container"),
                     html.P(
                         "This value is added to all TP_z_m (height) values.",
                         style={"color": "#666", "fontSize": "13px", "marginTop": "8px"},
@@ -81,3 +68,30 @@ def render() -> html.Div:
             html.Div(id="crane-file-info", style=INFO_CONTAINER_STYLE),
         ]
     )
+
+
+def register_pedestal_input_callback(app):
+    """Register callback to populate pedestal height input from store."""
+    from dash.dependencies import Input, Output
+    
+    @app.callback(
+        Output("pedestal-height-input-container", "children"),
+        Input("pedestal-height", "data"),
+    )
+    def update_pedestal_input(stored_value):
+        """Create input with value from store."""
+        value = stored_value if stored_value is not None else 6
+        return dcc.Input(
+            id="pedestal-height-input",
+            type="number",
+            value=value,
+            min=0,
+            max=50,
+            step=0.1,
+            style={
+                "width": "150px",
+                "padding": "8px",
+                "border": "1px solid #ccc",
+                "borderRadius": "4px",
+            },
+        )

@@ -9,7 +9,7 @@ from components import create_page_layout, create_tab_callback
 from crane_data import load_crane_file
 from styles import CARD_STYLE
 
-from .subpage1 import render as render_subpage1
+from .subpage1 import render as render_subpage1, register_pedestal_input_callback
 from .subpage2 import render as render_subpage2, register_data_tables_callback
 
 __all__ = ["layout", "register_callbacks"]
@@ -154,3 +154,6 @@ def register_callbacks(app: Any) -> None:
 
     # Register data tables callback
     register_data_tables_callback(app)
+    
+    # Register pedestal input callback
+    register_pedestal_input_callback(app)
