@@ -72,31 +72,19 @@ def create_outreach_height_chart(
         )
     )
     
-    # Calculate and add the boundary/envelope
-    # Group points and find the convex hull or boundary
-    try:
-        from scipy.spatial import ConvexHull
-        
-        points = np.column_stack((y_valid, z_valid))
-        if len(points) >= 3:
-            hull = ConvexHull(points)
-            hull_points = points[hull.vertices]
-            # Close the hull by adding the first point at the end
-            hull_points = np.vstack([hull_points, hull_points[0]])
-            
-            fig.add_trace(
-                go.Scatter(
-                    x=hull_points[:, 0],
-                    y=hull_points[:, 1],
-                    mode="lines",
-                    line=dict(color="#1f3b4d", width=2),
-                    name="Operational Envelope",
-                    hoverinfo="skip",
-                )
+    # Calculate the boundary using alpha shape (concave hull)
+    boundary_points = compute_boundary(y_valid, z_valid)
+    if boundary_points is not None and len(boundary_points) > 0:
+        fig.add_trace(
+            go.Scatter(
+                x=boundary_points[:, 0],
+                y=boundary_points[:, 1],
+                mode="lines",
+                line=dict(color="#1f3b4d", width=2),
+                name="Operational Envelope",
+                hoverinfo="skip",
             )
-    except Exception:
-        # If convex hull fails, just show the points
-        pass
+        )
     
     # Update layout
     fig.update_layout(
@@ -140,6 +128,149 @@ def create_outreach_height_chart(
     )
     
     return fig
+
+
+def compute_boundary(x: np.ndarray, y: np.ndarray) -> Optional[np.ndarray]:
+    """
+    Compute the boundary of a point cloud using alpha shape algorithm.
+    This creates a concave hull that follows the outer points closely.
+    
+    Args:
+        x: X coordinates
+        y: Y coordinates
+    
+    Returns:
+        Array of boundary points in order, or None if computation fails
+    """
+    try:
+        from scipy.spatial import Delaunay
+        
+        points = np.column_stack((x, y))
+        
+        if len(points) < 3:
+            return None
+        
+        # Compute Delaunay triangulation
+        tri = Delaunay(points)
+        
+        # Find edges and their frequency (boundary edges appear once)
+        edges = {}
+        for simplex in tri.simplices:
+            for i in range(3):
+                edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
+                edges[edge] = edges.get(edge, 0) + 1
+        
+        # Get all edges (for alpha shape we need to filter by edge length)
+        # Calculate alpha based on typical point spacing
+        all_edge_lengths = []
+        for (i, j) in edges.keys():
+            length = np.sqrt((points[i, 0] - points[j, 0])**2 + 
+                           (points[i, 1] - points[j, 1])**2)
+            all_edge_lengths.append(length)
+        
+        # Use a threshold based on the distribution of edge lengths
+        # This filters out long edges that cut across the shape
+        median_length = np.median(all_edge_lengths)
+        alpha_threshold = median_length * 2.5  # Adjust this multiplier for tighter/looser fit
+        
+        # Find boundary edges: edges that appear once AND are shorter than threshold
+        boundary_edges = []
+        for (i, j), count in edges.items():
+            length = np.sqrt((points[i, 0] - points[j, 0])**2 + 
+                           (points[i, 1] - points[j, 1])**2)
+            # Include edge if it's a boundary edge (count==1) or if it's short enough
+            if count == 1 and length <= alpha_threshold:
+                boundary_edges.append((i, j))
+        
+        if not boundary_edges:
+            # Fallback to convex hull if alpha shape fails
+            from scipy.spatial import ConvexHull
+            hull = ConvexHull(points)
+            hull_points = points[hull.vertices]
+            return np.vstack([hull_points, hull_points[0]])
+        
+        # Order the boundary edges to form a continuous path
+        ordered_points = order_boundary_edges(boundary_edges, points)
+        
+        if ordered_points is not None:
+            return ordered_points
+        
+        # Fallback to convex hull
+        from scipy.spatial import ConvexHull
+        hull = ConvexHull(points)
+        hull_points = points[hull.vertices]
+        return np.vstack([hull_points, hull_points[0]])
+        
+    except Exception:
+        return None
+
+
+def order_boundary_edges(edges: List[Tuple[int, int]], points: np.ndarray) -> Optional[np.ndarray]:
+    """
+    Order boundary edges to form a continuous closed path.
+    
+    Args:
+        edges: List of edge tuples (point indices)
+        points: Array of point coordinates
+    
+    Returns:
+        Ordered array of boundary points forming a closed path
+    """
+    if not edges:
+        return None
+    
+    # Build adjacency list
+    adjacency = {}
+    for i, j in edges:
+        if i not in adjacency:
+            adjacency[i] = []
+        if j not in adjacency:
+            adjacency[j] = []
+        adjacency[i].append(j)
+        adjacency[j].append(i)
+    
+    # Find the longest connected boundary
+    visited = set()
+    all_paths = []
+    
+    for start_node in adjacency:
+        if start_node in visited:
+            continue
+        
+        # BFS/DFS to find connected component
+        path = []
+        stack = [start_node]
+        component_visited = set()
+        
+        # Try to form a cycle
+        current = start_node
+        path = [current]
+        component_visited.add(current)
+        
+        while True:
+            neighbors = [n for n in adjacency[current] if n not in component_visited]
+            if not neighbors:
+                break
+            current = neighbors[0]
+            path.append(current)
+            component_visited.add(current)
+        
+        visited.update(component_visited)
+        all_paths.append(path)
+    
+    # Use the longest path
+    if not all_paths:
+        return None
+    
+    longest_path = max(all_paths, key=len)
+    
+    # Convert to coordinates and close the path
+    boundary_coords = points[longest_path]
+    
+    # Close the path
+    boundary_coords = np.vstack([boundary_coords, boundary_coords[0]])
+    
+    return boundary_coords
 
 
 def register_chart_callback(app: Any) -> None:
