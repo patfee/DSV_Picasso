@@ -93,21 +93,22 @@ def create_load_capacity_chart(
     # Create figure
     fig = go.Figure()
     
-    # Create colorscale similar to reference image (blue -> green -> yellow -> orange -> red)
+    # Create "jet" colorscale matching matplotlib's jet colormap
+    # Jet: dark blue -> cyan -> green -> yellow -> orange -> red -> dark red
     colorscale = [
-        [0.0, '#0000FF'],     # Blue (low)
-        [0.15, '#00BFFF'],    # Deep sky blue
-        [0.25, '#00FF00'],    # Green
-        [0.4, '#7FFF00'],     # Chartreuse
-        [0.55, '#FFFF00'],    # Yellow
-        [0.7, '#FFD700'],     # Gold
-        [0.8, '#FFA500'],     # Orange
-        [0.9, '#FF4500'],     # Orange-red
-        [1.0, '#8B0000'],     # Dark red (high)
+        [0.0, '#00007F'],     # Dark blue
+        [0.125, '#0000FF'],   # Blue
+        [0.25, '#007FFF'],    # Azure/Cyan
+        [0.375, '#00FFFF'],   # Cyan
+        [0.5, '#7FFF7F'],     # Light green
+        [0.625, '#FFFF00'],   # Yellow
+        [0.75, '#FF7F00'],    # Orange
+        [0.875, '#FF0000'],   # Red
+        [1.0, '#7F0000'],     # Dark red
     ]
-    
-    # Create contour levels
-    num_levels = 12
+
+    # Create contour levels - more levels for smoother appearance
+    num_levels = 20
     contour_step = (pmax_max - pmax_min) / num_levels
     
     # Add filled contour
@@ -122,11 +123,11 @@ def create_load_capacity_chart(
                 end=pmax_max,
                 size=contour_step,
                 showlabels=True,
-                labelfont=dict(size=10, color='black'),
+                labelfont=dict(size=9, color='black', family='Arial'),
             ),
             line=dict(
-                color='yellow',
-                width=1,
+                color='#FFFF00',
+                width=0.8,
             ),
             colorbar=dict(
                 title=dict(
@@ -174,11 +175,11 @@ def create_load_capacity_chart(
         ),
         xaxis=dict(
             title="Outreach [m]",
-            gridcolor="rgba(0,128,128,0.4)",
+            gridcolor="rgba(100,150,150,0.5)",
             gridwidth=1,
             zeroline=True,
-            zerolinecolor="#666",
-            zerolinewidth=1,
+            zerolinecolor="rgba(100,150,150,0.6)",
+            zerolinewidth=1.5,
             showgrid=True,
             dtick=2,
             tickfont=dict(size=10),
@@ -186,17 +187,17 @@ def create_load_capacity_chart(
         ),
         yaxis=dict(
             title="Height [m]",
-            gridcolor="rgba(0,128,128,0.4)",
+            gridcolor="rgba(100,150,150,0.5)",
             gridwidth=1,
             zeroline=True,
-            zerolinecolor="#666",
-            zerolinewidth=1,
+            zerolinecolor="rgba(100,150,150,0.6)",
+            zerolinewidth=1.5,
             showgrid=True,
             dtick=2,
             tickfont=dict(size=10),
             title_font=dict(size=12),
         ),
-        plot_bgcolor="rgba(0,100,100,0.15)",
+        plot_bgcolor="rgba(20,60,80,0.4)",
         paper_bgcolor="white",
         hovermode="closest",
         showlegend=False,
