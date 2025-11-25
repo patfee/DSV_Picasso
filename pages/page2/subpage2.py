@@ -1,26 +1,292 @@
-"""Page 2 - Subpage 2: Capacity Calculator."""
+"""Page 2 - Subpage 2: Capacity Calculator with Load Chart."""
+
+from typing import Any, Optional
 
 from dash import html, dcc
+from dash.dependencies import Input, Output
+import numpy as np
+import plotly.graph_objects as go
 
-from components import create_placeholder
+from styles import CARD_STYLE
 
 
 def render() -> html.Div:
-    """Render the capacity calculator page."""
+    """Render the capacity calculator page with load chart."""
     return html.Div(
         [
             html.H3("Capacity Calculator"),
-            create_placeholder(
-                title="Crane Capacity Calculator",
-                description="This section will provide an interactive calculator to determine "
-                "crane capacity based on user-specified radius and boom angle parameters.",
-                icon="🔢",
+            html.P(
+                "Select a crane configuration on Page 1 to view the load capacity chart.",
+                style={"marginBottom": "20px", "color": "#666"},
             ),
-            # TODO: Implement the following features:
-            # - Input fields for radius (TP_y_m) and height (TP_z_m)
-            # - Real-time capacity calculation
-            # - Safety margin indicator
-            # - Interpolation between data points
-            # - Visual indicator on load chart
+            html.Div(id="load-capacity-chart-container"),
         ]
     )
+
+
+def create_load_capacity_chart(
+    tp_y: np.ndarray,
+    tp_z: np.ndarray,
+    pmax: np.ndarray,
+    crane_name: str,
+) -> go.Figure:
+    """
+    Create a filled contour chart showing load capacity (Pmax) as a function
+    of outreach (TP_y_m) and height (TP_z_m).
+    
+    This creates a chart similar to typical crane load charts with colored
+    regions indicating load capacity at different positions.
+    
+    Args:
+        tp_y: TP_y_m matrix (outreach values in meters)
+        tp_z: TP_z_m matrix (height values in meters)
+        pmax: Pmax matrix (load capacity values)
+        crane_name: Name of the crane configuration
+    
+    Returns:
+        Plotly figure object
+    """
+    # Handle the data matrices
+    # Ensure all arrays have the same shape
+    if tp_y.shape != tp_z.shape or tp_y.shape != pmax.shape:
+        # Try to work with what we have
+        min_rows = min(tp_y.shape[0], tp_z.shape[0], pmax.shape[0])
+        min_cols = min(tp_y.shape[1], tp_z.shape[1], pmax.shape[1])
+        tp_y = tp_y[:min_rows, :min_cols]
+        tp_z = tp_z[:min_rows, :min_cols]
+        pmax = pmax[:min_rows, :min_cols]
+    
+    # Get the range of Pmax for color scale
+    pmax_valid = pmax[~np.isnan(pmax)]
+    if len(pmax_valid) == 0:
+        pmax_min, pmax_max = 0, 100
+    else:
+        pmax_min = float(np.nanmin(pmax_valid))
+        pmax_max = float(np.nanmax(pmax_valid))
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Create a custom colorscale similar to the reference image
+    # Goes from blue/cyan (low load) through green/yellow to red (high load)
+    colorscale = [
+        [0.0, '#2171b5'],      # Blue (low)
+        [0.15, '#6baed6'],     # Light blue
+        [0.25, '#41ab5d'],     # Green
+        [0.4, '#78c679'],      # Light green
+        [0.55, '#c7e9b4'],     # Yellow-green
+        [0.7, '#ffffb2'],      # Yellow
+        [0.8, '#fed976'],      # Orange-yellow
+        [0.9, '#fd8d3c'],      # Orange
+        [0.95, '#e31a1c'],     # Red-orange
+        [1.0, '#800026'],      # Dark red (high)
+    ]
+    
+    # Add filled contour using scatter with markers
+    # First create the contour fill
+    fig.add_trace(
+        go.Contour(
+            x=tp_y.flatten(),
+            y=tp_z.flatten(),
+            z=pmax.flatten(),
+            colorscale=colorscale,
+            contours=dict(
+                start=pmax_min,
+                end=pmax_max,
+                size=(pmax_max - pmax_min) / 10 if pmax_max > pmax_min else 10,
+                showlabels=True,
+                labelfont=dict(size=10, color='white'),
+            ),
+            colorbar=dict(
+                title=dict(
+                    text="Pmax [t]",
+                    font=dict(size=12, color="#1f3b4d"),
+                ),
+                tickfont=dict(size=10),
+                len=0.9,
+                thickness=20,
+            ),
+            line=dict(
+                color='rgba(255,255,0,0.5)',
+                width=1,
+            ),
+            hovertemplate=(
+                "<b>Outreach:</b> %{x:.1f} m<br>"
+                "<b>Height:</b> %{y:.1f} m<br>"
+                "<b>Pmax:</b> %{z:.1f} t<br>"
+                "<extra></extra>"
+            ),
+            name="Load Capacity",
+        )
+    )
+    
+    # Calculate dynamic coefficient (Cdyn) - typically around 1.15 for offshore cranes
+    # This is shown in the reference image title
+    cdyn = 1.15
+    
+    # Update layout to match the style of the reference image
+    fig.update_layout(
+        title=dict(
+            text=f"Cdyn={cdyn:.2f}",
+            font=dict(size=14, color="#1f3b4d"),
+            x=0.5,
+            y=0.98,
+        ),
+        xaxis=dict(
+            title="Outreach [m]",
+            gridcolor="rgba(0,128,128,0.3)",
+            gridwidth=1,
+            zeroline=True,
+            zerolinecolor="#999",
+            zerolinewidth=1,
+            showgrid=True,
+            dtick=2,
+            tickfont=dict(size=10),
+            title_font=dict(size=12),
+        ),
+        yaxis=dict(
+            title="Height [m]",
+            gridcolor="rgba(0,128,128,0.3)",
+            gridwidth=1,
+            zeroline=True,
+            zerolinecolor="#999",
+            zerolinewidth=1,
+            showgrid=True,
+            dtick=2,
+            tickfont=dict(size=10),
+            title_font=dict(size=12),
+        ),
+        plot_bgcolor="rgba(0,80,80,0.1)",
+        paper_bgcolor="white",
+        hovermode="closest",
+        showlegend=False,
+        margin=dict(l=60, r=80, t=50, b=60),
+        height=650,
+    )
+    
+    return fig
+
+
+def register_load_chart_callback(app: Any) -> None:
+    """Register callback for the load capacity chart."""
+    
+    @app.callback(
+        Output("load-capacity-chart-container", "children"),
+        Input("selected-crane-file", "data"),
+        Input("pedestal-height", "data"),
+    )
+    def update_load_chart(filename: Optional[str], pedestal_height: Optional[float]) -> html.Div:
+        """Update the load capacity chart based on selected crane file."""
+        if not filename:
+            return html.Div(
+                [
+                    html.P(
+                        "⚠️ No crane file selected.",
+                        style={"color": "#ffc107", "fontWeight": "bold"},
+                    ),
+                    html.P("Please go to 'Crane Selection' page and select a configuration first."),
+                ],
+                style=CARD_STYLE,
+            )
+        
+        # Default pedestal height
+        if pedestal_height is None:
+            pedestal_height = 6.0
+        
+        # Import here to avoid circular imports
+        from crane_data import load_crane_file
+        
+        try:
+            data = load_crane_file(filename)
+        except Exception as e:
+            return html.Div(
+                [
+                    html.P(f"❌ Error loading file: {e}", style={"color": "#dc3545"}),
+                ],
+                style=CARD_STYLE,
+            )
+        
+        tp_y = data.get("TP_y_m")
+        tp_z = data.get("TP_z_m")
+        pmax = data.get("Pmax")
+        
+        if tp_y is None or tp_z is None:
+            return html.Div(
+                [
+                    html.P(
+                        "❌ TP_y_m or TP_z_m data not available in this file.",
+                        style={"color": "#dc3545"},
+                    ),
+                ],
+                style=CARD_STYLE,
+            )
+        
+        if pmax is None:
+            return html.Div(
+                [
+                    html.P(
+                        "❌ Pmax (load capacity) data not available in this file.",
+                        style={"color": "#dc3545"},
+                    ),
+                ],
+                style=CARD_STYLE,
+            )
+        
+        # Ensure arrays are 2D
+        if tp_y.ndim == 1:
+            tp_y = tp_y.reshape(1, -1)
+        if tp_z.ndim == 1:
+            tp_z = tp_z.reshape(1, -1)
+        if pmax.ndim == 1:
+            pmax = pmax.reshape(1, -1)
+        
+        # Add pedestal height to TP_z_m
+        tp_z_adjusted = tp_z + pedestal_height
+        
+        # Get crane name from filename
+        crane_name = filename.replace(".mat", "").replace("_", " ")
+        
+        # Get load capacity statistics
+        pmax_valid = pmax[~np.isnan(pmax)]
+        pmax_min = float(np.nanmin(pmax_valid)) if len(pmax_valid) > 0 else 0
+        pmax_max = float(np.nanmax(pmax_valid)) if len(pmax_valid) > 0 else 0
+        
+        # Create the chart
+        fig = create_load_capacity_chart(tp_y, tp_z_adjusted, pmax, crane_name)
+        
+        return html.Div(
+            [
+                html.Div(
+                    [
+                        html.P(f"📂 Currently viewing: ", style={"display": "inline"}),
+                        html.Strong(filename.replace(".mat", "")),
+                        html.Span(f" | Pedestal height: {pedestal_height:.1f} m", style={"marginLeft": "15px", "color": "#666"}),
+                        html.Span(f" | Load range: {pmax_min:.1f} - {pmax_max:.1f} t", style={"marginLeft": "15px", "color": "#666"}),
+                    ],
+                    style={
+                        "marginBottom": "15px",
+                        "padding": "10px",
+                        "backgroundColor": "#e8f4e8",
+                        "borderRadius": "4px",
+                    },
+                ),
+                dcc.Graph(
+                    figure=fig,
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,
+                        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+                    },
+                    style={"border": "1px solid #ddd", "borderRadius": "4px"},
+                ),
+                html.Div(
+                    [
+                        html.P(
+                            "💡 Tip: Hover over the chart to see exact Outreach, Height, and Load Capacity (Pmax) values. "
+                            "Use the toolbar to zoom, pan, or save the chart.",
+                            style={"color": "#666", "fontSize": "13px", "marginTop": "10px"},
+                        ),
+                    ]
+                ),
+            ]
+        )
