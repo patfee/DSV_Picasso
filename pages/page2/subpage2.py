@@ -99,8 +99,11 @@ def create_load_capacity_chart(
         distances = cdist(grid_flat, valid_points).min(axis=1)
 
         # Mask points that are too far from any valid data
-        # Threshold based on typical spacing in the data
-        spacing = np.median([y_max - y_min, z_max - z_min]) / 20
+        # Use much stricter threshold to prevent extending beyond envelope
+        # Calculate typical spacing between data points
+        avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
+        avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
+        spacing = min(avg_spacing_y, avg_spacing_z) * 1.5
         mask = (distances < spacing).reshape(Yi.shape)
         Pi = np.where(mask, Pi, np.nan)
     except:
