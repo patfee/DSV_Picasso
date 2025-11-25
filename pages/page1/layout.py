@@ -1,79 +1,144 @@
+"""Page 1 Layout: Crane Selection and Data Overview."""
+
+from typing import Any, Optional, Tuple
+
 from dash import html, dcc
 from dash.dependencies import Input, Output
 
-from .subpage1 import render as render_subpage1
-from .subpage2 import render as render_subpage2
+from components import create_page_layout, create_tab_callback
 from crane_data import load_crane_file
+from styles import CARD_STYLE
+
+from .subpage1 import render as render_subpage1
+from .subpage2 import render as render_subpage2, register_data_tables_callback
+
+__all__ = ["layout", "register_callbacks"]
+
+# Define tabs for this page
+TABS = [
+    ("File Selection", "page1-tab1"),
+    ("Data Overview", "page1-tab2"),
+]
+
+# Tab renderers mapping
+TAB_RENDERERS = {
+    "page1-tab1": render_subpage1,
+    "page1-tab2": render_subpage2,
+}
+
+# Create page layout using factory
+layout = create_page_layout(
+    page_id="page1",
+    page_title="Crane Selection",
+    tabs=TABS,
+)
 
 
-def layout():
-    return html.Div(
-        [
-            html.H2("Page 1"),
-            dcc.Tabs(
-                id="page1-tabs",
-                value="page1-tab1",
-                children=[
-                    dcc.Tab(label="Subpage 1", value="page1-tab1"),
-                    dcc.Tab(label="Subpage 2", value="page1-tab2"),
-                ],
-            ),
-            html.Div(id="page1-tab-content", style={"marginTop": "20px"}),
-        ]
-    )
+def register_callbacks(app: Any) -> None:
+    """Register all callbacks for Page 1."""
 
+    # Tab switching callback
+    tab_callback = create_tab_callback("page1", TAB_RENDERERS)
+    tab_callback(app)
 
-def register_callbacks(app):
-    @app.callback(
-        Output("page1-tab-content", "children"),
-        Input("page1-tabs", "value"),
-    )
-    def switch_tab(active_tab):
-        if active_tab == "page1-tab1":
-            return render_subpage1()
-        elif active_tab == "page1-tab2":
-            return render_subpage2()
-        return html.Div("Unknown tab.")
-
+    # Crane file selection callback
     @app.callback(
         Output("selected-crane-file", "data"),
         Output("crane-file-info", "children"),
         Input("crane-file-dropdown", "value"),
+        prevent_initial_call=False,
     )
-    def update_crane_selection(filename):
+    def update_crane_selection(
+        filename: Optional[str],
+    ) -> Tuple[Optional[str], html.Div]:
+        """Update the selected crane file and display its info."""
         if not filename:
-            return None, html.Div("No file selected.")
+            return None, html.Div(
+                html.P("No file selected. Please select a crane configuration."),
+                style=CARD_STYLE,
+            )
 
         try:
             data = load_crane_file(filename)
+        except FileNotFoundError as exc:
+            return None, html.Div(
+                [
+                    html.P(
+                        f"❌ File not found: {filename}",
+                        style={"color": "#dc3545"},
+                    ),
+                ],
+                style=CARD_STYLE,
+            )
+        except ValueError as exc:
+            return None, html.Div(
+                [
+                    html.P(
+                        f"❌ Error parsing file: {exc}",
+                        style={"color": "#dc3545"},
+                    ),
+                ],
+                style=CARD_STYLE,
+            )
         except Exception as exc:
-            return None, html.Div(f"Error loading file: {exc}")
+            return None, html.Div(
+                [
+                    html.P(
+                        f"❌ Unexpected error: {exc}",
+                        style={"color": "#dc3545"},
+                    ),
+                ],
+                style=CARD_STYLE,
+            )
 
-        def shape_of(arr):
+        def format_shape(arr: Any) -> str:
+            """Format array shape for display."""
+            if arr is None:
+                return "Not available"
             try:
-                return getattr(arr, "shape", None)
+                shape = getattr(arr, "shape", None)
+                if shape:
+                    return str(shape)
+                return f"Scalar: {arr}"
             except Exception:
-                return None
+                return "Unknown"
 
-        vm = data.get("VMm")
-        vf = data.get("VFm")
-        tp_y = data.get("TP_y_m")
-        tp_z = data.get("TP_z_m")
-        pmax = data.get("Pmax")
-
+        # Build info display
         info = html.Div(
             [
-                html.P(f"Selected file: {filename}"),
-                html.Ul(
+                html.H4(f"✅ Loaded: {filename.replace('.mat', '')}"),
+                html.Table(
                     [
-                        html.Li(f"VMm shape: {shape_of(vm)}"),
-                        html.Li(f"VFm shape: {shape_of(vf)}"),
-                        html.Li(f"TP_y_m shape: {shape_of(tp_y)}"),
-                        html.Li(f"TP_z_m shape: {shape_of(tp_z)}"),
-                        html.Li(f"Pmax shape: {shape_of(pmax)}"),
-                    ]
+                        html.Thead(
+                            html.Tr([html.Th("Variable"), html.Th("Shape/Value")])
+                        ),
+                        html.Tbody(
+                            [
+                                html.Tr(
+                                    [html.Td("VMm"), html.Td(format_shape(data.get("VMm")))]
+                                ),
+                                html.Tr(
+                                    [html.Td("VFm"), html.Td(format_shape(data.get("VFm")))]
+                                ),
+                                html.Tr(
+                                    [html.Td("TP_y_m"), html.Td(format_shape(data.get("TP_y_m")))]
+                                ),
+                                html.Tr(
+                                    [html.Td("TP_z_m"), html.Td(format_shape(data.get("TP_z_m")))]
+                                ),
+                                html.Tr(
+                                    [html.Td("Pmax"), html.Td(format_shape(data.get("Pmax")))]
+                                ),
+                            ]
+                        ),
+                    ],
+                    style={"width": "100%", "borderCollapse": "collapse"},
                 ),
-            ]
+            ],
+            style=CARD_STYLE,
         )
 
         return filename, info
+
+    # Register data tables callback
+    register_data_tables_callback(app)

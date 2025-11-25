@@ -1,35 +1,41 @@
-from dash import html, dcc
-from dash.dependencies import Input, Output
+"""Page 2 Layout: Analysis Tools."""
 
-from .subpage1 import render as render_subpage1
+from typing import Any
+
+from dash import html
+
+from components import create_page_layout, create_tab_callback
+
+from .subpage1 import render as render_subpage1, register_chart_callback
 from .subpage2 import render as render_subpage2
 
+__all__ = ["layout", "register_callbacks"]
 
-def layout():
-    return html.Div(
-        [
-            html.H2("Page 2"),
-            dcc.Tabs(
-                id="page2-tabs",
-                value="page2-tab1",
-                children=[
-                    dcc.Tab(label="Subpage 1", value="page2-tab1"),
-                    dcc.Tab(label="Subpage 2", value="page2-tab2"),
-                ],
-            ),
-            html.Div(id="page2-tab-content", style={"marginTop": "20px"}),
-        ]
-    )
+# Define tabs for this page
+TABS = [
+    ("Outreach vs Height", "page2-tab1"),
+    ("Capacity Calculator", "page2-tab2"),
+]
+
+# Tab renderers mapping
+TAB_RENDERERS = {
+    "page2-tab1": render_subpage1,
+    "page2-tab2": render_subpage2,
+}
+
+# Create page layout using factory
+layout = create_page_layout(
+    page_id="page2",
+    page_title="Analysis",
+    tabs=TABS,
+)
 
 
-def register_callbacks(app):
-    @app.callback(
-        Output("page2-tab-content", "children"),
-        Input("page2-tabs", "value"),
-    )
-    def switch_tab(active_tab):
-        if active_tab == "page2-tab1":
-            return render_subpage1()
-        elif active_tab == "page2-tab2":
-            return render_subpage2()
-        return html.Div("Unknown tab.")
+def register_callbacks(app: Any) -> None:
+    """Register all callbacks for Page 2."""
+    # Tab switching callback
+    tab_callback = create_tab_callback("page2", TAB_RENDERERS)
+    tab_callback(app)
+
+    # Register chart callback
+    register_chart_callback(app)

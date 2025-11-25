@@ -1,35 +1,41 @@
-from dash import html, dcc
-from dash.dependencies import Input, Output
+"""Page 3 Layout: Reports and Documentation."""
+
+from typing import Any
+
+from dash import html
+
+from components import create_page_layout, create_tab_callback
 
 from .subpage1 import render as render_subpage1
-from .subpage2 import render as render_subpage2
+from .subpage2 import render as render_subpage2, register_export_callbacks
+
+__all__ = ["layout", "register_callbacks"]
+
+# Define tabs for this page
+TABS = [
+    ("Generate Report", "page3-tab1"),
+    ("Export Data", "page3-tab2"),
+]
+
+# Tab renderers mapping
+TAB_RENDERERS = {
+    "page3-tab1": render_subpage1,
+    "page3-tab2": render_subpage2,
+}
+
+# Create page layout using factory
+layout = create_page_layout(
+    page_id="page3",
+    page_title="Reports",
+    tabs=TABS,
+)
 
 
-def layout():
-    return html.Div(
-        [
-            html.H2("Page 3"),
-            dcc.Tabs(
-                id="page3-tabs",
-                value="page3-tab1",
-                children=[
-                    dcc.Tab(label="Subpage 1", value="page3-tab1"),
-                    dcc.Tab(label="Subpage 2", value="page3-tab2"),
-                ],
-            ),
-            html.Div(id="page3-tab-content", style={"marginTop": "20px"}),
-        ]
-    )
+def register_callbacks(app: Any) -> None:
+    """Register all callbacks for Page 3."""
+    # Tab switching callback
+    tab_callback = create_tab_callback("page3", TAB_RENDERERS)
+    tab_callback(app)
 
-
-def register_callbacks(app):
-    @app.callback(
-        Output("page3-tab-content", "children"),
-        Input("page3-tabs", "value"),
-    )
-    def switch_tab(active_tab):
-        if active_tab == "page3-tab1":
-            return render_subpage1()
-        elif active_tab == "page3-tab2":
-            return render_subpage2()
-        return html.Div("Unknown tab.")
+    # Register export callbacks
+    register_export_callbacks(app)
