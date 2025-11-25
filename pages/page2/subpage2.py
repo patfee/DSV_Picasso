@@ -31,7 +31,7 @@ def create_load_capacity_chart(
     crane_name: str,
 ) -> go.Figure:
     """
-    Create a colored scatter/heatmap chart showing load capacity (Pmax) as a function
+    Create a filled contour chart showing load capacity (Pmax) as a function
     of outreach (TP_y_m) and height (TP_z_m).
     
     This creates a chart similar to typical crane load charts with colored
@@ -46,8 +46,9 @@ def create_load_capacity_chart(
     Returns:
         Plotly figure object
     """
+    from scipy.interpolate import griddata
+    
     # Handle the data matrices
-    # Ensure all arrays have the same shape
     if tp_y.shape != tp_z.shape or tp_y.shape != pmax.shape:
         min_rows = min(tp_y.shape[0], tp_z.shape[0], pmax.shape[0])
         min_cols = min(tp_y.shape[1], tp_z.shape[1], pmax.shape[1])
@@ -55,7 +56,7 @@ def create_load_capacity_chart(
         tp_z = tp_z[:min_rows, :min_cols]
         pmax = pmax[:min_rows, :min_cols]
     
-    # Flatten arrays for scatter plot
+    # Flatten arrays
     y_flat = tp_y.flatten()
     z_flat = tp_z.flatten()
     p_flat = pmax.flatten()
@@ -66,68 +67,104 @@ def create_load_capacity_chart(
     z_valid = z_flat[valid_mask]
     p_valid = p_flat[valid_mask]
     
-    # Get the range of Pmax for color scale
     if len(p_valid) == 0:
-        pmax_min, pmax_max = 0, 100
-    else:
-        pmax_min = float(np.min(p_valid))
-        pmax_max = float(np.max(p_valid))
+        # Return empty figure if no valid data
+        fig = go.Figure()
+        fig.add_annotation(text="No valid data", xref="paper", yref="paper", x=0.5, y=0.5)
+        return fig
+    
+    # Create regular grid for interpolation
+    y_min, y_max = float(np.min(y_valid)), float(np.max(y_valid))
+    z_min, z_max = float(np.min(z_valid)), float(np.max(z_valid))
+    
+    # Create grid with reasonable resolution
+    grid_size = 100
+    yi = np.linspace(y_min, y_max, grid_size)
+    zi = np.linspace(z_min, z_max, grid_size)
+    Yi, Zi = np.meshgrid(yi, zi)
+    
+    # Interpolate Pmax onto regular grid
+    Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
+    
+    # Get Pmax range
+    pmax_min = float(np.min(p_valid))
+    pmax_max = float(np.max(p_valid))
     
     # Create figure
     fig = go.Figure()
     
-    # Create a custom colorscale similar to the reference image
-    # Goes from blue/cyan (low load) through green/yellow to red (high load)
+    # Create colorscale similar to reference image (blue -> green -> yellow -> orange -> red)
     colorscale = [
-        [0.0, '#2171b5'],      # Blue (low)
-        [0.15, '#6baed6'],     # Light blue
-        [0.25, '#41ab5d'],     # Green
-        [0.4, '#78c679'],      # Light green
-        [0.55, '#c7e9b4'],     # Yellow-green
-        [0.7, '#ffffb2'],      # Yellow
-        [0.8, '#fed976'],      # Orange-yellow
-        [0.9, '#fd8d3c'],      # Orange
-        [0.95, '#e31a1c'],     # Red-orange
-        [1.0, '#800026'],      # Dark red (high)
+        [0.0, '#0000FF'],     # Blue (low)
+        [0.15, '#00BFFF'],    # Deep sky blue
+        [0.25, '#00FF00'],    # Green
+        [0.4, '#7FFF00'],     # Chartreuse
+        [0.55, '#FFFF00'],    # Yellow
+        [0.7, '#FFD700'],     # Gold
+        [0.8, '#FFA500'],     # Orange
+        [0.9, '#FF4500'],     # Orange-red
+        [1.0, '#8B0000'],     # Dark red (high)
     ]
     
-    # Add scatter plot with color based on Pmax
+    # Create contour levels
+    num_levels = 12
+    contour_step = (pmax_max - pmax_min) / num_levels
+    
+    # Add filled contour
     fig.add_trace(
-        go.Scatter(
-            x=y_valid,
-            y=z_valid,
-            mode='markers',
-            marker=dict(
-                size=8,
-                color=p_valid,
-                colorscale=colorscale,
-                cmin=pmax_min,
-                cmax=pmax_max,
-                colorbar=dict(
-                    title=dict(
-                        text="Pmax [t]",
-                        font=dict(size=12, color="#1f3b4d"),
-                    ),
-                    tickfont=dict(size=10),
-                    len=0.9,
-                    thickness=20,
+        go.Contour(
+            x=yi,
+            y=zi,
+            z=Pi,
+            colorscale=colorscale,
+            contours=dict(
+                start=pmax_min,
+                end=pmax_max,
+                size=contour_step,
+                showlabels=True,
+                labelfont=dict(size=10, color='black'),
+            ),
+            line=dict(
+                color='yellow',
+                width=1,
+            ),
+            colorbar=dict(
+                title=dict(
+                    text="Pmax [t]",
+                    font=dict(size=12, color="#1f3b4d"),
                 ),
-                showscale=True,
+                tickfont=dict(size=10),
+                len=0.9,
+                thickness=20,
             ),
             hovertemplate=(
                 "<b>Outreach:</b> %{x:.1f} m<br>"
                 "<b>Height:</b> %{y:.1f} m<br>"
-                "<b>Pmax:</b> %{marker.color:.1f} t<br>"
+                "<b>Pmax:</b> %{z:.1f} t<br>"
                 "<extra></extra>"
             ),
             name="Load Capacity",
         )
     )
     
-    # Calculate dynamic coefficient (Cdyn) - typically around 1.15 for offshore cranes
+    # Add boundary outline using the original data points
+    boundary_points = _compute_envelope_boundary(tp_y, tp_z)
+    if boundary_points is not None:
+        fig.add_trace(
+            go.Scatter(
+                x=boundary_points[:, 0],
+                y=boundary_points[:, 1],
+                mode='lines',
+                line=dict(color='#1a1a2e', width=3),
+                name='Envelope',
+                hoverinfo='skip',
+            )
+        )
+    
+    # Dynamic coefficient
     cdyn = 1.15
     
-    # Update layout to match the style of the reference image
+    # Update layout
     fig.update_layout(
         title=dict(
             text=f"Cdyn={cdyn:.2f}",
@@ -137,10 +174,10 @@ def create_load_capacity_chart(
         ),
         xaxis=dict(
             title="Outreach [m]",
-            gridcolor="rgba(0,128,128,0.3)",
+            gridcolor="rgba(0,128,128,0.4)",
             gridwidth=1,
             zeroline=True,
-            zerolinecolor="#999",
+            zerolinecolor="#666",
             zerolinewidth=1,
             showgrid=True,
             dtick=2,
@@ -149,17 +186,17 @@ def create_load_capacity_chart(
         ),
         yaxis=dict(
             title="Height [m]",
-            gridcolor="rgba(0,128,128,0.3)",
+            gridcolor="rgba(0,128,128,0.4)",
             gridwidth=1,
             zeroline=True,
-            zerolinecolor="#999",
+            zerolinecolor="#666",
             zerolinewidth=1,
             showgrid=True,
             dtick=2,
             tickfont=dict(size=10),
             title_font=dict(size=12),
         ),
-        plot_bgcolor="rgba(0,80,80,0.1)",
+        plot_bgcolor="rgba(0,100,100,0.15)",
         paper_bgcolor="white",
         hovermode="closest",
         showlegend=False,
@@ -168,6 +205,61 @@ def create_load_capacity_chart(
     )
     
     return fig
+
+
+def _compute_envelope_boundary(tp_y: np.ndarray, tp_z: np.ndarray) -> np.ndarray:
+    """
+    Compute the boundary envelope by tracing the matrix edges.
+    
+    Args:
+        tp_y: TP_y_m matrix
+        tp_z: TP_z_m matrix
+    
+    Returns:
+        Array of boundary points or None
+    """
+    try:
+        if tp_y.ndim != 2 or tp_z.ndim != 2:
+            return None
+        
+        rows, cols = tp_y.shape
+        boundary_y = []
+        boundary_z = []
+        
+        # Trace perimeter: top edge (first row)
+        for j in range(cols):
+            if not np.isnan(tp_y[0, j]) and not np.isnan(tp_z[0, j]):
+                boundary_y.append(tp_y[0, j])
+                boundary_z.append(tp_z[0, j])
+        
+        # Right edge (last column)
+        for i in range(1, rows):
+            if not np.isnan(tp_y[i, -1]) and not np.isnan(tp_z[i, -1]):
+                boundary_y.append(tp_y[i, -1])
+                boundary_z.append(tp_z[i, -1])
+        
+        # Bottom edge (last row, reversed)
+        for j in range(cols - 2, -1, -1):
+            if not np.isnan(tp_y[-1, j]) and not np.isnan(tp_z[-1, j]):
+                boundary_y.append(tp_y[-1, j])
+                boundary_z.append(tp_z[-1, j])
+        
+        # Left edge (first column, reversed)
+        for i in range(rows - 2, 0, -1):
+            if not np.isnan(tp_y[i, 0]) and not np.isnan(tp_z[i, 0]):
+                boundary_y.append(tp_y[i, 0])
+                boundary_z.append(tp_z[i, 0])
+        
+        if not boundary_y:
+            return None
+        
+        # Close the boundary
+        boundary_y.append(boundary_y[0])
+        boundary_z.append(boundary_z[0])
+        
+        return np.column_stack((boundary_y, boundary_z))
+    except Exception:
+        return None
 
 
 def register_load_chart_callback(app: Any) -> None:
