@@ -92,7 +92,8 @@ def create_load_capacity_contour(
         Pi_nearest = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='nearest')
         Pi = np.where(nan_mask, Pi_nearest, Pi)
 
-    # Mask values outside the operational envelope using boundary polygon
+    # Create boolean mask for the valid crane envelope
+    # True = inside working area, False = outside (should not be coloured)
     try:
         from scipy.spatial import ConvexHull
         from matplotlib.path import Path
@@ -106,32 +107,14 @@ def create_load_capacity_contour(
 
         # Test each grid point for containment within the hull
         grid_points = np.column_stack((Yi.flatten(), Zi.flatten()))
-        inside_hull = hull_path.contains_points(grid_points).reshape(Yi.shape)
+        inside = hull_path.contains_points(grid_points).reshape(Yi.shape)
 
-        # Additional distance-based refinement with STRICT threshold
-        from scipy.spatial.distance import cdist
-        distances = cdist(grid_points, valid_points).min(axis=1).reshape(Yi.shape)
-
-        # Use strict threshold to keep contour well within envelope
-        avg_spacing_y = (y_max - y_min) / np.sqrt(len(y_valid))
-        avg_spacing_z = (z_max - z_min) / np.sqrt(len(z_valid))
-        max_distance = min(avg_spacing_y, avg_spacing_z) * 0.8  # STRICT: keeps contour inside envelope
-
-        # Combine both constraints: must be inside hull AND close to actual data
-        valid_mask = inside_hull & (distances < max_distance)
-        Pi = np.where(valid_mask, Pi, np.nan)
+        # Set Z to NaN where the mask is False
+        # This ensures the contour stops at the envelope boundary
+        Z_plot = np.where(inside, Pi, np.nan)
     except Exception:
-        # If masking fails, use basic distance masking as fallback with strict threshold
-        try:
-            from scipy.spatial.distance import cdist
-            grid_flat = np.column_stack((Yi.flatten(), Zi.flatten()))
-            valid_points = np.column_stack((y_valid, z_valid))
-            distances = cdist(grid_flat, valid_points).min(axis=1)
-            avg_spacing = ((y_max - y_min) + (z_max - z_min)) / (2 * np.sqrt(len(y_valid)))
-            mask = (distances < avg_spacing * 0.8).reshape(Yi.shape)  # STRICT: keeps contour inside envelope
-            Pi = np.where(mask, Pi, np.nan)
-        except:
-            pass
+        # If masking fails, use the unmasked data
+        Z_plot = Pi
 
     # Get Pmax range
     pmax_min = float(np.min(p_valid))
@@ -149,12 +132,12 @@ def create_load_capacity_contour(
         [1.0, '#FF0000'],     # Red (high capacity)
     ]
 
-    # Add contour plot
+    # Add contour plot with masked data
     fig.add_trace(
         go.Contour(
             x=yi,
             y=zi,
-            z=Pi,
+            z=Z_plot,
             colorscale=colorscale,
             colorbar=dict(
                 title=dict(
