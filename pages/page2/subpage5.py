@@ -138,6 +138,10 @@ def create_matplotlib_contourf(
     cbar = plt.colorbar(contourf, ax=ax, label='Pmax [t]')
     cbar.ax.tick_params(labelsize=10)
 
+    # Plot the actual data points
+    ax.scatter(y_valid, z_valid, c='black', s=15, alpha=0.5,
+               edgecolors='white', linewidths=0.5, label='Data Points', zorder=5)
+
     # Compute and plot boundary envelope
     boundary_points = _compute_envelope_boundary(tp_y, tp_z)
     if boundary_points is not None:
@@ -153,6 +157,9 @@ def create_matplotlib_contourf(
     ax.set_title(f'Load Capacity Contour Plot - {crane_name} (Cdyn={cdyn:.2f})',
                 fontsize=14, fontweight='bold', pad=15)
     ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add legend
+    ax.legend(loc='best', fontsize=10, framealpha=0.9)
 
     # Set aspect ratio to be equal for better visualization
     ax.set_aspect('equal', adjustable='box')
