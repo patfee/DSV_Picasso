@@ -1,5 +1,6 @@
 dash==2.18.1
 gunicorn==23.0.0
+matplotlib>=3.7.0
 numpy>=1.24.0
 plotly>=5.18.0
 scipy==1.14.1
