@@ -11,6 +11,7 @@ from .subpage2 import render as render_subpage2, register_load_chart_callback
 from .subpage3 import render as render_subpage3, register_heatmap_callback
 from .subpage4 import render as render_subpage4, register_contour_callback
 from .subpage5 import render as render_subpage5, register_matplotlib_callback
+from .subpage6 import render as render_subpage6, register_masking_comparison_callback
 
 __all__ = ["layout", "register_callbacks"]
 
@@ -21,6 +22,7 @@ TABS = [
     ("Heatmap", "page2-tab3"),
     ("Contour Plot", "page2-tab4"),
     ("Matplotlib Sample", "page2-tab5"),
+    ("Masking Comparison", "page2-tab6"),
 ]
 
 # Tab renderers mapping
@@ -30,6 +32,7 @@ TAB_RENDERERS = {
     "page2-tab3": render_subpage3,
     "page2-tab4": render_subpage4,
     "page2-tab5": render_subpage5,
+    "page2-tab6": render_subpage6,
 }
 
 # Create page layout using factory
@@ -60,3 +63,6 @@ def register_callbacks(app: Any) -> None:
 
     # Register matplotlib sample callback
     register_matplotlib_callback(app)
+
+    # Register masking comparison callback
+    register_masking_comparison_callback(app)
