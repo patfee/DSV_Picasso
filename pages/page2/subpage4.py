@@ -86,35 +86,30 @@ def create_load_capacity_contour(
     # Interpolate Pmax onto regular grid using linear interpolation
     Pi = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='linear')
 
-    # Fill remaining NaN values using nearest-neighbor interpolation to reduce blanks
-    nan_mask = np.isnan(Pi)
-    if np.any(nan_mask):
-        Pi_nearest = griddata((y_valid, z_valid), p_valid, (Yi, Zi), method='nearest')
-        Pi = np.where(nan_mask, Pi_nearest, Pi)
+    # Create distance-based mask - only show data near actual data points
+    # This prevents extrapolation into areas outside the crane envelope
+    from scipy.spatial.distance import cdist
 
-    # Create boolean mask for the valid crane envelope
-    # True = inside working area, False = outside (should not be coloured)
-    try:
-        from scipy.spatial import ConvexHull
-        from matplotlib.path import Path
+    # Calculate distance from each grid point to nearest valid data point
+    grid_points = np.column_stack((Yi.flatten(), Zi.flatten()))
+    valid_points = np.column_stack((y_valid, z_valid))
 
-        # Create convex hull from valid data points
-        valid_points = np.column_stack((y_valid, z_valid))
-        hull = ConvexHull(valid_points)
+    # Compute minimum distance to any valid data point
+    distances = cdist(grid_points, valid_points, metric='euclidean')
+    min_distances = np.min(distances, axis=1).reshape(Yi.shape)
 
-        # Get hull vertices to create the boundary polygon
-        hull_path = Path(valid_points[hull.vertices])
+    # Calculate appropriate distance threshold based on data density
+    # Use a fraction of the typical spacing between data points
+    y_spacing = (y_max - y_min) / grid_size
+    z_spacing = (z_max - z_min) / grid_size
+    typical_spacing = np.sqrt(y_spacing**2 + z_spacing**2)
+    distance_threshold = typical_spacing * 2.5  # Conservative threshold
 
-        # Test each grid point for containment within the hull
-        grid_points = np.column_stack((Yi.flatten(), Zi.flatten()))
-        inside = hull_path.contains_points(grid_points).reshape(Yi.shape)
+    # Create mask: only show data within threshold distance of actual points
+    distance_mask = min_distances <= distance_threshold
 
-        # Set Z to NaN where the mask is False
-        # This ensures the contour stops at the envelope boundary
-        Z_plot = np.where(inside, Pi, np.nan)
-    except Exception:
-        # If masking fails, use the unmasked data
-        Z_plot = Pi
+    # Apply the distance mask to the interpolated data
+    Z_plot = np.where(distance_mask, Pi, np.nan)
 
     # Get Pmax range
     pmax_min = float(np.min(p_valid))
