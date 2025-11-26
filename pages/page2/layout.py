@@ -9,6 +9,7 @@ from components import create_page_layout, create_tab_callback
 from .subpage1 import render as render_subpage1, register_chart_callback
 from .subpage2 import render as render_subpage2, register_load_chart_callback
 from .subpage3 import render as render_subpage3, register_heatmap_callback
+from .subpage4 import render as render_subpage4, register_contour_callback
 
 __all__ = ["layout", "register_callbacks"]
 
@@ -17,6 +18,7 @@ TABS = [
     ("Outreach vs Height", "page2-tab1"),
     ("3D Surface", "page2-tab2"),
     ("Heatmap", "page2-tab3"),
+    ("Contour Plot", "page2-tab4"),
 ]
 
 # Tab renderers mapping
@@ -24,6 +26,7 @@ TAB_RENDERERS = {
     "page2-tab1": render_subpage1,
     "page2-tab2": render_subpage2,
     "page2-tab3": render_subpage3,
+    "page2-tab4": render_subpage4,
 }
 
 # Create page layout using factory
@@ -48,3 +51,6 @@ def register_callbacks(app: Any) -> None:
 
     # Register heatmap callback
     register_heatmap_callback(app)
+
+    # Register contour callback
+    register_contour_callback(app)
