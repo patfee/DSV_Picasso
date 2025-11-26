@@ -105,11 +105,11 @@ def create_matplotlib_contourf(
     distances = cdist(grid_points, valid_points, metric='euclidean')
     min_distances = np.min(distances, axis=1).reshape(Yi.shape)
 
-    # Calculate distance threshold
+    # Calculate distance threshold - use stricter threshold to avoid overshoot
     y_spacing = (y_max - y_min) / grid_size
     z_spacing = (z_max - z_min) / grid_size
     typical_spacing = np.sqrt(y_spacing**2 + z_spacing**2)
-    distance_threshold = typical_spacing * 2.5
+    distance_threshold = typical_spacing * 1.0
 
     # Apply mask
     distance_mask = min_distances <= distance_threshold
