@@ -118,13 +118,18 @@ def create_load_capacity_contour(
     # Create figure
     fig = go.Figure()
 
-    # Create colorscale for the contour plot
+    # Create colorscale for the contour plot with 5 discrete levels
     colorscale = [
         [0.0, '#0000FF'],     # Blue (low capacity)
-        [0.25, '#00FFFF'],    # Cyan
-        [0.5, '#00FF00'],     # Green
-        [0.75, '#FFFF00'],    # Yellow
-        [1.0, '#FF0000'],     # Red (high capacity)
+        [0.2, '#0000FF'],
+        [0.2, '#00FFFF'],     # Cyan
+        [0.4, '#00FFFF'],
+        [0.4, '#00FF00'],     # Green
+        [0.6, '#00FF00'],
+        [0.6, '#FFFF00'],     # Yellow
+        [0.8, '#FFFF00'],
+        [0.8, '#FF0000'],     # Red (high capacity)
+        [1.0, '#FF0000'],
     ]
 
     # Add contour plot with masked data
@@ -134,6 +139,7 @@ def create_load_capacity_contour(
             y=zi,
             z=Z_plot,
             colorscale=colorscale,
+            ncontours=5,
             colorbar=dict(
                 title=dict(
                     text="Pmax [t]",
@@ -157,33 +163,12 @@ def create_load_capacity_contour(
                 showlabels=True,
                 labelfont=dict(
                     size=10,
-                    color='white',
+                    color='black',
                 ),
             ),
             line=dict(
                 width=1.5,
                 smoothing=0.85,
-            ),
-        )
-    )
-
-    # Add scatter plot of actual data points
-    fig.add_trace(
-        go.Scatter(
-            x=y_valid,
-            y=z_valid,
-            mode='markers',
-            marker=dict(
-                color='black',
-                size=4,
-                opacity=0.5,
-                line=dict(color='white', width=0.5),
-            ),
-            name='Data Points',
-            hovertemplate=(
-                "<b>Outreach:</b> %{x:.1f} m<br>"
-                "<b>Height:</b> %{y:.1f} m<br>"
-                "<extra></extra>"
             ),
         )
     )
@@ -451,7 +436,6 @@ def register_contour_callback(app: Any) -> None:
                     [
                         html.P(
                             "💡 Tip: Hover over the contour plot to see exact Outreach, Height, and Load Capacity (Pmax) values. "
-                            "Black dots represent actual data points from the crane specification. "
                             "Contour lines connect points of equal load capacity. "
                             "Use the toolbar to zoom, pan, reset axes, or save the chart as PNG.",
                             style={"color": "#666", "fontSize": "13px", "marginTop": "10px"},
