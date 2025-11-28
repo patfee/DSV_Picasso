@@ -103,7 +103,7 @@ def create_load_capacity_contour(
     y_spacing = (y_max - y_min) / grid_size
     z_spacing = (z_max - z_min) / grid_size
     typical_spacing = np.sqrt(y_spacing**2 + z_spacing**2)
-    distance_threshold = typical_spacing * 2.5  # Conservative threshold
+    distance_threshold = typical_spacing * 1.0  # Match matplotlib threshold for better coverage
 
     # Create mask: only show data within threshold distance of actual points
     distance_mask = min_distances <= distance_threshold
@@ -167,6 +167,27 @@ def create_load_capacity_contour(
         )
     )
 
+    # Add scatter plot of actual data points
+    fig.add_trace(
+        go.Scatter(
+            x=y_valid,
+            y=z_valid,
+            mode='markers',
+            marker=dict(
+                color='black',
+                size=4,
+                opacity=0.5,
+                line=dict(color='white', width=0.5),
+            ),
+            name='Data Points',
+            hovertemplate=(
+                "<b>Outreach:</b> %{x:.1f} m<br>"
+                "<b>Height:</b> %{y:.1f} m<br>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
     # Add boundary outline using the original data points
     boundary_points = _compute_envelope_boundary(tp_y, tp_z)
     if boundary_points is not None:
@@ -184,10 +205,15 @@ def create_load_capacity_contour(
     # Dynamic coefficient
     cdyn = 1.15
 
+    # Calculate coverage percentage (percentage of grid that has valid data)
+    total_grid_points = distance_mask.size
+    valid_grid_points = np.sum(distance_mask)
+    coverage_pct = (valid_grid_points / total_grid_points) * 100 if total_grid_points > 0 else 0
+
     # Update layout
     fig.update_layout(
         title=dict(
-            text=f"Load Capacity Contour Plot (Cdyn={cdyn:.2f})",
+            text=f"Distance-based (threshold={distance_threshold/typical_spacing:.1f}x)<br>Coverage: {coverage_pct:.1f}%",
             font=dict(size=14, color="#1f3b4d"),
             x=0.5,
             y=0.98,
@@ -219,9 +245,36 @@ def create_load_capacity_contour(
         plot_bgcolor="rgba(20,60,80,0.4)",
         paper_bgcolor="white",
         hovermode="closest",
-        showlegend=False,
-        margin=dict(l=60, r=80, t=50, b=60),
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#1f3b4d",
+            borderwidth=1,
+        ),
+        margin=dict(l=60, r=80, t=80, b=60),
         height=650,
+    )
+
+    # Add annotation explaining the distance-based approach
+    fig.add_annotation(
+        text=(
+            "Conservative: Only shows data near actual points.<br>"
+            "Prevents overshoot but may be too conservative."
+        ),
+        xref="paper", yref="paper",
+        x=0.02, y=0.98,
+        xanchor="left", yanchor="top",
+        showarrow=False,
+        bgcolor="rgba(255, 248, 220, 0.9)",
+        bordercolor="#1f3b4d",
+        borderwidth=1,
+        borderpad=8,
+        font=dict(size=11, color="#1f3b4d"),
+        align="left",
     )
 
     return fig
@@ -398,8 +451,9 @@ def register_contour_callback(app: Any) -> None:
                     [
                         html.P(
                             "💡 Tip: Hover over the contour plot to see exact Outreach, Height, and Load Capacity (Pmax) values. "
+                            "Black dots represent actual data points from the crane specification. "
                             "Contour lines connect points of equal load capacity. "
-                            "Use the toolbar to zoom, pan, or save the chart.",
+                            "Use the toolbar to zoom, pan, reset axes, or save the chart as PNG.",
                             style={"color": "#666", "fontSize": "13px", "marginTop": "10px"},
                         ),
                     ]
