@@ -247,6 +247,7 @@ def create_load_capacity_contour(
     # Add annotation explaining the distance-based approach
     fig.add_annotation(
         text=(
+            f"Pmax Range: {pmax_min:.1f} - {pmax_max:.1f} t<br>"
             "Conservative: Only shows data near actual points.<br>"
             "Prevents overshoot but may be too conservative."
         ),
