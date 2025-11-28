@@ -132,6 +132,15 @@ def create_load_capacity_contour(
         [1.0, '#FF0000'],
     ]
 
+    # Calculate explicit contour levels matching the 5 color band boundaries
+    pmax_range = pmax_max - pmax_min
+    contour_levels = [
+        pmax_min + 0.2 * pmax_range,  # Boundary between blue and cyan
+        pmax_min + 0.4 * pmax_range,  # Boundary between cyan and green
+        pmax_min + 0.6 * pmax_range,  # Boundary between green and yellow
+        pmax_min + 0.8 * pmax_range,  # Boundary between yellow and red
+    ]
+
     # Add contour plot with masked data
     fig.add_trace(
         go.Contour(
@@ -139,7 +148,17 @@ def create_load_capacity_contour(
             y=zi,
             z=Z_plot,
             colorscale=colorscale,
-            ncontours=5,
+            contours=dict(
+                coloring='heatmap',
+                showlabels=True,
+                labelfont=dict(
+                    size=10,
+                    color='black',
+                ),
+                start=contour_levels[0],
+                end=contour_levels[-1],
+                size=(contour_levels[-1] - contour_levels[0]) / 3,  # 4 lines evenly spaced
+            ),
             colorbar=dict(
                 title=dict(
                     text="Pmax [t]",
@@ -158,17 +177,10 @@ def create_load_capacity_contour(
             zmin=pmax_min,
             zmax=pmax_max,
             name="Load Capacity",
-            contours=dict(
-                coloring='heatmap',
-                showlabels=True,
-                labelfont=dict(
-                    size=10,
-                    color='black',
-                ),
-            ),
             line=dict(
-                width=1.5,
+                width=2,
                 smoothing=0.85,
+                color='black',
             ),
         )
     )
