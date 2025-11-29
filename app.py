@@ -73,7 +73,7 @@ def create_header() -> html.Div:
 # Main application layout
 app.layout = html.Div(
     [
-        dcc.Location(id="url"),
+        dcc.Location(id="url", refresh=False),
         dcc.Store(id="selected-crane-file", storage_type="session"),
         dcc.Store(id="pedestal-height", storage_type="session", data=6),
         create_header(),
@@ -94,11 +94,14 @@ app.layout = html.Div(
 @app.callback(
     Output("page-content", "children"),
     Input("url", "pathname"),
+    prevent_initial_call=False,
 )
 def display_page(pathname: Optional[str]) -> html.Div:
     """Route to the appropriate page based on URL pathname."""
-    if pathname is None:
+    if pathname is None or pathname == "/":
         pathname = "/"
+        # Ensure we return the default page
+        return page1_layout()
 
     layout_func = PAGE_REGISTRY.get(pathname)
     if layout_func:
@@ -117,6 +120,19 @@ def display_page(pathname: Optional[str]) -> html.Div:
 page1_register_callbacks(app)
 page2_register_callbacks(app)
 page3_register_callbacks(app)
+
+
+# Add a simple health check endpoint for debugging
+@server.route('/health')
+def health_check():
+    """Health check endpoint to verify app is running."""
+    import json
+    return json.dumps({
+        'status': 'ok',
+        'app_running': True,
+        'callbacks_registered': len(app.callback_map),
+        'dash_version': dash.__version__,
+    }), 200, {'Content-Type': 'application/json'}
 
 
 if __name__ == "__main__":
