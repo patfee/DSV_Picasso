@@ -122,7 +122,7 @@ page2_register_callbacks(app)
 page3_register_callbacks(app)
 
 
-# Add a simple health check endpoint for debugging
+# Add debugging endpoints
 @server.route('/health')
 def health_check():
     """Health check endpoint to verify app is running."""
@@ -133,6 +133,35 @@ def health_check():
         'callbacks_registered': len(app.callback_map),
         'dash_version': dash.__version__,
     }), 200, {'Content-Type': 'application/json'}
+
+
+@server.route('/debug')
+def debug_info():
+    """Debug endpoint to show app state."""
+    import json
+
+    # Test that page layouts can be called
+    test_results = {}
+    for path, layout_func in PAGE_REGISTRY.items():
+        try:
+            result = layout_func()
+            test_results[path] = {
+                'status': 'ok',
+                'type': str(type(result)),
+                'has_children': hasattr(result, 'children'),
+            }
+        except Exception as e:
+            test_results[path] = {
+                'status': 'error',
+                'error': str(e),
+            }
+
+    return json.dumps({
+        'status': 'ok',
+        'callbacks_count': len(app.callback_map),
+        'page_registry': list(PAGE_REGISTRY.keys()),
+        'layout_test_results': test_results,
+    }, indent=2), 200, {'Content-Type': 'application/json'}
 
 
 if __name__ == "__main__":
