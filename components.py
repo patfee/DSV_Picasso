@@ -67,7 +67,7 @@ def create_tab_callback(
         def switch_tab(active_tab: Optional[str]) -> html.Div:
             if active_tab and active_tab in tab_renderers:
                 return tab_renderers[active_tab]()
-            return html.Div("Unknown tab.")
+            return html.Div("Select a tab to view content.")
 
     return register
 

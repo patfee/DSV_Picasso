@@ -94,24 +94,24 @@ app.layout = html.Div(
 @app.callback(
     Output("page-content", "children"),
     Input("url", "pathname"),
-    prevent_initial_call=False,
 )
 def display_page(pathname: Optional[str]) -> html.Div:
     """Route to the appropriate page based on URL pathname."""
-    if pathname is None or pathname == "/":
-        pathname = "/"
-        # Ensure we return the default page
-        return page1_layout()
+    # Default to home page
+    if not pathname or pathname == "/":
+        pathname = "/page1"
 
+    # Get the layout function for this path
     layout_func = PAGE_REGISTRY.get(pathname)
     if layout_func:
         return layout_func()
 
+    # 404 page
     return html.Div(
         [
             html.H2("404 - Page not found"),
             html.P(f"The path '{pathname}' does not exist."),
-            html.A("Go to home page", href="/"),
+            html.A("Go to home page", href="/page1"),
         ]
     )
 
