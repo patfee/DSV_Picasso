@@ -29,14 +29,14 @@ TABS = [
 ]
 
 # Tab renderers mapping
-# page1-tab1 shows page1-subpage2 (Data Overview)
-# page1-tab2 shows page2-subpage1 (Outreach vs Height)
-# page1-tab3 shows page2-subpage2 (3D Load Capacity Surface)
+# page1-tab1 shows page1-subpage1 (File Selection - pedestal height & file info)
+# page1-tab2 shows page1-subpage2 (Data Overview - data tables)
+# page1-tab3 shows page2-subpage1 (Outreach vs Height)
 # page1-tab4 shows page3-subpage2 (Export Data)
 TAB_RENDERERS = {
-    "page1-tab1": render_subpage2,  # Shows Data Overview from page 1
-    "page1-tab2": render_page2_sub1,  # Shows Outreach vs Height from page 2
-    "page1-tab3": render_page2_sub2,  # Shows 3D Load Capacity from page 2
+    "page1-tab1": render_subpage1,  # Shows File Selection from page 1
+    "page1-tab2": render_subpage2,  # Shows Data Overview from page 1
+    "page1-tab3": render_page2_sub1,  # Shows Outreach vs Height from page 2
     "page1-tab4": render_page3_sub2,  # Shows Export Data from page 3
 }
 
